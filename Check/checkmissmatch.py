@@ -11,7 +11,7 @@ import time
 excel_path = r"C:\Users\tanapat\Downloads\1_KCS active model id_27Jun25 (2).xlsx"
 base_folder = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\14_KCS_done uploaded"
 base_url = "https://console.cloud.google.com/storage/browser/chanintr-2d3d/production/{};tab=objects?inv=1&invt=Ab5Vew&prefix=&forceOnObjectsSortingFiltering=false"
-mismatch_txt_path = r"C:\Users\tanapat\Desktop\mismatch_ids_ETH.txt"
+mismatch_txt_path = r"C:\Users\tanapat\Desktop\mismatch_ids.txt"
 
 # โหลด id จาก Excel
 df = pd.read_excel(excel_path)

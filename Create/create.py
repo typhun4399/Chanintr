@@ -3,14 +3,6 @@ import os
 import re # นำเข้าโมดูล re สำหรับการทำความสะอาดชื่อโฟลเดอร์
 
 def create_folders_from_excel(excel_path, target_base_path):
-    """
-    Reads folder names from an Excel column and creates corresponding main folders,
-    along with '2D', '3D', and 'Datasheet' subfolders inside each.
-
-    Args:
-        excel_path (str): The full path to the Excel file.
-        target_base_path (str): The base path where new main folders will be created.
-    """
     try:
         # อ่านไฟล์ Excel เข้ามาใน DataFrame
         df = pd.read_excel(excel_path)
@@ -70,10 +62,10 @@ def create_folders_from_excel(excel_path, target_base_path):
 # --- กำหนด Path ของไฟล์ Excel และ Path ปลายทางของคุณ ---
 if __name__ == "__main__":
     # พาธของไฟล์ Excel ที่มีคอลัมน์ 'FolderName'
-    excel_file_path = r"C:\Users\tanapat\Downloads\AUD New model id_21Aug25 (7).xlsx"
+    excel_file_path = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25.xlsx"
     
     # พาธของไดเรกทอรีหลักที่คุณต้องการให้โฟลเดอร์ใหม่ถูกสร้างขึ้น
-    destination_base_path = r"D:\AUDO\2D&3D"
+    destination_base_path = r"C:\Users\phunk\OneDrive\Desktop\WWS\2D&3D"
 
     # เรียกใช้ฟังก์ชันเพื่อสร้างโฟลเดอร์
     create_folders_from_excel(excel_file_path, destination_base_path)

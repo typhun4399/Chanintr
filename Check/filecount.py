@@ -1,8 +1,8 @@
 import os
 
 # ---- Path หลัก ----
-base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\11_MUU - Usa checking"
-output_file = r"C:\Users\tanapat\Desktop\folders_2D3D_detail.txt"
+base_path = r"I:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\10_WTN"
+output_file = r"C:\Users\phunk\OneDrive\Desktop\folders_2D3D_detail.txt"
 
 results = []
 
@@ -22,18 +22,26 @@ for folder in os.listdir(base_path):
         if os.path.isdir(path_3d):
             files_3d = [f for f in os.listdir(path_3d) if os.path.isfile(os.path.join(path_3d, f))]
 
-        results.append((folder, files_2d, files_3d))
+        # ---- ตรวจโฟลเดอร์ Datasheet ----
+        path_Datasheet = os.path.join(folder_path, "Datasheet")
+        if os.path.isdir(path_Datasheet):
+            files_datasheet = [f for f in os.listdir(path_Datasheet) if os.path.isfile(os.path.join(path_Datasheet, f))]
+
+        results.append((folder, files_2d, files_3d, files_datasheet))
 
 # ---- เขียนรายงาน ----
 with open(output_file, "w", encoding="utf-8") as f:
     f.write("📊 รายงานไฟล์ในโฟลเดอร์ 2D / 3D\n\n")
-    for folder, f2d, f3d in results:
-        f.write(f"📂 {folder}\n")
+    for folder, f2d, f3d, ds in results:
+        f.write(f"{folder}\n")
         f.write(f"   2D: {len(f2d)} ไฟล์\n")
         for file in f2d:
             f.write(f"      - {file}\n")
         f.write(f"   3D: {len(f3d)} ไฟล์\n")
         for file in f3d:
+            f.write(f"      - {file}\n")
+        f.write(f"   Datasheet: {len(ds)} ไฟล์\n")
+        for file in ds:
             f.write(f"      - {file}\n")
         f.write("\n")
 

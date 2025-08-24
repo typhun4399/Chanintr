@@ -2,7 +2,7 @@ import os
 import shutil
 
 # ---- Path หลัก ----
-base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\12_FDC"
+base_path = r"I:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\10_WTN"
 
 # โฟลเดอร์ที่ต้องเช็ค
 target_folders = {"2D", "3D", "Datasheet"}

@@ -1,25 +1,22 @@
 import os
 import time
 import pandas as pd
+import shutil
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import shutil
 
 # ---------------- CONFIG ----------------
-excel_input = r"C:\Users\tanapat\Downloads\WWS_model id to get 2D-3D_20Aug25_Test.xlsx"
-excel_output = r"C:\Users\tanapat\Downloads\WWS_model id to get 2D-3D_20Aug25_Test_Price.xlsx"
-base_folder = r"D:\WWS\2D&3D"
+excel_input = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25.xlsx"
+excel_output = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25_price.xlsx"
+base_folder = r"C:\Users\phunk\OneDrive\Desktop\WWS\2D&3D"
 
 # ---------------- Read Excel ----------------
 df = pd.read_excel(excel_input)
-search_list = df['style'].dropna().astype(str).tolist()  # สำหรับ search
-id_list = df['id'].dropna().astype(str).tolist()          # สำหรับ folder
-
-if len(search_list) != len(id_list):
-    print("❌ Warning: จำนวน style กับ id ไม่เท่ากัน")
+search_list = df['style'].dropna().astype(str).tolist()
+id_list = df['id'].dropna().astype(str).tolist()
 
 # ---------------- Setup Chrome (undetected) ----------------
 options = uc.ChromeOptions()
@@ -45,15 +42,15 @@ prices = []
 for idx, vid_search in enumerate(search_list):
     try:
         vid_folder = id_list[idx]
-        id_folder = os.path.join(base_folder, vid_folder)  # folder ปลายทางที่สร้างไว้แล้ว
+        id_folder = os.path.join(base_folder, vid_folder)
 
         # --- Search ---
         search_box = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "/html/body/div[2]/div[1]/div/div/div[1]/div[3]/div[2]/div/form/div[2]"))
+            EC.element_to_be_clickable((By.XPATH, "//form/div[2]"))
         )
         search_box.click()
         search_input = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "/html/body/div[2]/div[1]/div/div/div[1]/div[3]/div[2]/div/form/div[2]/input"))
+            EC.element_to_be_clickable((By.XPATH, "//form/div[2]/input"))
         )
         search_input.clear()
         search_input.send_keys(vid_search)
@@ -62,7 +59,7 @@ for idx, vid_search in enumerate(search_list):
         # --- คลิก autocomplete ถ้ามี ---
         try:
             first_item = wait.until(
-                EC.element_to_be_clickable((By.XPATH, "/html/body/div[2]/main/div[3]/div[2]/div[2]/div[2]/div[1]/div[1]/div[4]/div/div/ol/li[1]/div/div[1]"))
+                EC.element_to_be_clickable((By.XPATH, "//ol/li[1]/div/div[1]"))
             )
             first_item.click()
         except:
@@ -81,19 +78,9 @@ for idx, vid_search in enumerate(search_list):
             prices.append("")
             continue
 
-        # --- Price ---
-        try:
-            price_el = wait.until(
-                EC.presence_of_element_located((By.XPATH, "/html/body/div[2]/main/div[3]/div/div/div[1]/div[2]/div/div/div[4]/div[1]/div/span/span[1]/span"))
-            )
-            price_text = price_el.text.strip()
-        except:
-            price_text = ""
-        prices.append(price_text)
-
         # --- Download Datasheet ---
         try:
-            ds = driver.find_element(By.XPATH, "/html/body/div[2]/main/div[3]/div/div/div[1]/div[2]/div/div/div[8]/div[1]/div[2]/div/ul/li[1]/a")
+            ds = driver.find_element(By.XPATH, "//*[@id='maincontent']//a[contains(text(), 'TearSheet')]")
             ds_link = ds.get_attribute("href")
             driver.get(ds_link)
             time.sleep(3)
@@ -105,7 +92,7 @@ for idx, vid_search in enumerate(search_list):
 
         # --- Download 2D ---
         try:
-            twod_links = driver.find_elements(By.XPATH, "/html/body/div[2]/main/div[3]/div/div/div[1]/div[2]/div/div/div[8]/div[1]/div[2]/div/ul/li[6]/a")
+            twod_links = driver.find_elements(By.XPATH, "//ul/li[6]/a")
             for link in twod_links:
                 href = link.get_attribute("href")
                 driver.get(href)
@@ -118,7 +105,7 @@ for idx, vid_search in enumerate(search_list):
 
         # --- Download 3D ---
         try:
-            threeD_parent = driver.find_element(By.XPATH, "/html/body/div[2]/main/div[3]/div/div/div[1]/div[2]/div/div/div[8]/div[1]/div[2]/div/ul/li[7]")
+            threeD_parent = driver.find_element(By.XPATH, "//ul/li[7]")
             threeD_links = threeD_parent.find_elements(By.TAG_NAME, "a")
             for link in threeD_links:
                 href = link.get_attribute("href")
@@ -129,6 +116,16 @@ for idx, vid_search in enumerate(search_list):
                 driver.back()
         except:
             print(f"⚠️ {vid_search}: ไม่มี 3D")
+
+        # --- Price ---
+        try:
+            price_el = wait.until(
+                EC.presence_of_element_located((By.XPATH, "//div[4]/div[1]/div/span/span[1]/span"))
+            )
+            price_text = price_el.text.strip()
+        except:
+            price_text = ""
+        prices.append(price_text)
 
     except Exception as e:
         print(f"❌ Error {vid_search}: {e}")

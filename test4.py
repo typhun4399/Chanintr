@@ -8,9 +8,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # ---------------- CONFIG ----------------
-excel_input = r"C:\Users\tanapat\Downloads\WWS_model id to get 2D-3D_20Aug25_Test.xlsx"
-excel_output = r"C:\Users\tanapat\Downloads\WWS_model id to get 2D-3D_20Aug25_Test.xlsx"
-base_folder = r"D:\WWS\2D&3D"
+excel_input = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25.xlsx"
+excel_output = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25.xlsx"
+base_folder = r"C:\Users\phunk\OneDrive\Desktop\WWS\2D&3D"
 
 df = pd.read_excel(excel_input)
 search_list = df['style'].dropna().astype(str).tolist()
@@ -36,14 +36,6 @@ try:
             vid_folder = id_list[idx]
             id_folder = os.path.join(base_folder, vid_folder)
 
-            # เตรียม subfolder
-            datasheet_folder = os.path.join(id_folder, "Datasheet")
-            folder_2d = os.path.join(id_folder, "2D")
-            folder_3d = os.path.join(id_folder, "3D")
-            os.makedirs(datasheet_folder, exist_ok=True)
-            os.makedirs(folder_2d, exist_ok=True)
-            os.makedirs(folder_3d, exist_ok=True)
-
             # ---------------- เริ่มทำงาน 1 row ----------------
             driver.get("https://www.waterworks.com/us_en/")
             time.sleep(3)
@@ -59,12 +51,13 @@ try:
             time.sleep(2)
 
             # --- คลิก autocomplete ---
-            items = driver.find_elements(By.XPATH, "//ol/li[1]/div/div[1]")
-            if items:
-                try:
-                    items[0].click()
-                except:
-                    print(f"⚠️ {vid_search}: element เจอแต่คลิกไม่ได้")
+            try:
+                first_item = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, "//ol/li[1]/div/div[1]"))
+                )
+                first_item.click()
+            except:
+                print(f"❌ {vid_search}: ไม่เจอ autocomplete, ข้ามไป")
 
             time.sleep(2)
 
@@ -93,9 +86,10 @@ try:
                     except:
                         continue
 
-            # เก็บ log ลงไฟล์ .txt
+            # --- เก็บ log ลงไฟล์ .txt ---
+            datasheet_folder = os.path.join(id_folder, "Datasheet")
             log_path = os.path.join(datasheet_folder, "links.txt")
-            links_data = []  # เก็บข้อมูลแต่ละ li สำหรับ Excel
+            links_data = []  # เก็บข้อมูลแต่ละ a สำหรับ Excel
             with open(log_path, "w", encoding="utf-8") as log_file:
                 log_file.write(f"🔎 Links for {vid_search} ({vid_folder})\n")
                 log_file.write("="*60 + "\n\n")
@@ -104,25 +98,38 @@ try:
                     for li in li_list:
                         li_text = li.text.strip()
                         try:
-                            a_tag = li.find_element(By.TAG_NAME, "a")
-                            href = a_tag.get_attribute("href")
-                            # ใช้ JS innerText แทน .text
-                            a_text = driver.execute_script("return arguments[0].innerText;", a_tag).strip()
-                            if not a_text:
-                                a_text = li_text  # fallback ถ้า innerText ว่าง
+                            # ดึง a ทั้งหมดใน li
+                            a_tags = li.find_elements(By.TAG_NAME, "a")
+                            if not a_tags:  # ถ้าไม่มี a เลย
+                                log_file.write(f"- li text: {li_text}\n  (no <a> found)\n\n")
+                                links_data.append({
+                                    "li_text": li_text,
+                                    "a_text": "",
+                                    "href": ""
+                                })
+                            else:
+                                for a_tag in a_tags:
+                                    href = a_tag.get_attribute("href")
+                                    a_text = driver.execute_script("return arguments[0].innerText;", a_tag).strip()
+                                    if not a_text:
+                                        a_text = li_text  # fallback
+                                    log_file.write(f"- li text: {li_text}\n  a text: {a_text}\n  URL: {href}\n\n")
+                                    links_data.append({
+                                        "li_text": li_text,
+                                        "a_text": a_text,
+                                        "href": href
+                                    })
                         except:
-                            href = "(no href)"
-                            a_text = li_text
-                        log_file.write(f"- li text: {li_text}\n  a text: {a_text}\n  URL: {href}\n\n")
-                        links_data.append({
-                            "li_text": li_text,
-                            "a_text": a_text,
-                            "href": href
-                        })
+                            log_file.write(f"- li text: {li_text}\n  ⚠️ Error reading <a>\n\n")
+                            links_data.append({
+                                "li_text": li_text,
+                                "a_text": "",
+                                "href": "(error)"
+                            })
                 else:
                     log_file.write("⚠️ ไม่พบ <ul><li> ในหน้านี้\n")
 
-            print(f"✅ {vid_search}: บันทึก links ทั้งหมด {len(li_list)} รายการไปที่ {log_path}")
+            print(f"✅ {vid_search}: บันทึก links ทั้งหมด {len(links_data)} รายการไปที่ {log_path}")
             links_all.append(str(links_data))  # แปลงเป็น str เพื่อใส่ Excel
 
             # --- ดึง Price ---

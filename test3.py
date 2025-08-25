@@ -9,9 +9,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # ---------------- CONFIG ----------------
-excel_input = r"C:\Users\tanapat\Downloads\WWS_model id to get 2D-3D_20Aug25_Test.xlsx"
-excel_output = r"C:\Users\tanapat\Downloads\WWS_model id to get 2D-3D_20Aug25_Test.xlsx"
-base_folder = r"D:\WWS\2D&3D"
+excel_input = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25.xlsx"
+excel_output = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25.xlsx"
+base_folder = r"C:\Users\phunk\OneDrive\Desktop\WWS\2D&3D"
 
 df = pd.read_excel(excel_input)
 search_list = df['style'].dropna().astype(str).tolist()

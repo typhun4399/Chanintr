@@ -9,32 +9,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # ---------------- CONFIG ----------------
-excel_input = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25.xlsx"
-excel_output = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25_price.xlsx"
-base_folder = r"C:\Users\phunk\OneDrive\Desktop\WWS\2D&3D"
+excel_input = r"C:\Users\tanapat\Downloads\WWS_model id to get 2D-3D_20Aug25_Test.xlsx"
+excel_output = r"C:\Users\tanapat\Downloads\WWS_model id to get 2D-3D_20Aug25_Test.xlsx"
+base_folder = r"D:\WWS\2D&3D"
 
-# ---------------- Read Excel ----------------
 df = pd.read_excel(excel_input)
 search_list = df['style'].dropna().astype(str).tolist()
 id_list = df['id'].dropna().astype(str).tolist()
-
-# ---------------- Setup Chrome (undetected) ----------------
-options = uc.ChromeOptions()
-options.add_argument("--start-maximized")
-
-prefs = {
-    "download.default_directory": base_folder,
-    "download.prompt_for_download": False,
-    "download.directory_upgrade": True,
-    "safebrowsing.enabled": True
-}
-options.add_experimental_option("prefs", prefs)
-
-driver = uc.Chrome(options=options)
-wait = WebDriverWait(driver, 20)
-
-driver.get("https://www.waterworks.com/us_en/")
-time.sleep(5)
 
 prices = []
 
@@ -44,60 +25,89 @@ for idx, vid_search in enumerate(search_list):
         vid_folder = id_list[idx]
         id_folder = os.path.join(base_folder, vid_folder)
 
+        # เตรียม subfolder
+        datasheet_folder = os.path.join(id_folder, "Datasheet")
+        folder_2d = os.path.join(id_folder, "2D")
+        folder_3d = os.path.join(id_folder, "3D")
+        os.makedirs(datasheet_folder, exist_ok=True)
+        os.makedirs(folder_2d, exist_ok=True)
+        os.makedirs(folder_3d, exist_ok=True)
+
+        # --- Setup Chrome (ใหม่ทุกครั้ง) ---
+        options = uc.ChromeOptions()
+        options.add_argument("--start-maximized")
+        options.add_argument("--disable-popup-blocking")
+        options.add_argument("--disable-notifications")
+        options.add_argument("--disable-extensions")
+
+        prefs = {
+            "printing.print_preview_sticky_settings.appState": '{"recentDestinations":[{"id":"Save as PDF","origin":"local"}],"selectedDestinationId":"Save as PDF","version":2}',
+            "savefile.default_directory": base_folder
+        }
+        options.add_experimental_option("prefs", prefs)
+        options.add_argument("--kiosk-printing")
+
+        driver = uc.Chrome(options=options)
+        wait = WebDriverWait(driver, 20)
+
+        # ---------------- เริ่มทำงาน 1 row ----------------
+        driver.get("https://www.waterworks.com/us_en/")
+        time.sleep(3)
+
         # --- Search ---
-        search_box = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//form/div[2]"))
-        )
+        search_box = wait.until(EC.element_to_be_clickable((By.XPATH, "//form/div[2]")))
+        driver.execute_script("arguments[0].scrollIntoView(true);", search_box)
         search_box.click()
-        search_input = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//form/div[2]/input"))
-        )
+        search_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//form/div[2]/input")))
         search_input.clear()
         search_input.send_keys(vid_search)
         search_input.send_keys(Keys.RETURN)
+        time.sleep(2)
 
-        # --- คลิก autocomplete ถ้ามี ---
+        # --- คลิก autocomplete ---
         items = driver.find_elements(By.XPATH, "//ol/li[1]/div/div[1]")
         if items:
             try:
                 items[0].click()
             except:
                 print(f"⚠️ {vid_search}: element เจอแต่คลิกไม่ได้")
-        else:
-            print(f"❌ {vid_search}: ไม่เจอ autocomplete, ข้ามไป")
 
-        # --- รอ Technical Documents ---
-        try:
-            tech_doc = wait.until(
-                EC.element_to_be_clickable((By.XPATH, "//*[@id='maincontent']//span[contains(text(), 'Technical Documents')]"))
-            )
-            driver.execute_script("arguments[0].scrollIntoView(true);", tech_doc)
-            time.sleep(1)
-            tech_doc.click()
-        except:
-            print(f"❌ {vid_search}: ไม่มี Technical Documents")
-            prices.append("")
-            continue
+        time.sleep(2)
 
-        # --- Download Datasheet ---
-        try:
-            ds = driver.find_element(By.XPATH, "//*[@id='maincontent']//a[contains(text(), 'TearSheet')]")
-            ds_link = ds.get_attribute("href")
-            driver.get(ds_link)
-            time.sleep(3)
-            files = [os.path.join(base_folder, f) for f in os.listdir(base_folder) 
-                if os.path.isfile(os.path.join(base_folder, f)) and f.lower().endswith(".pdf")]
+        # --- หา ul และ loop li ---
+        ul_element = wait.until(EC.presence_of_element_located(
+            (By.XPATH, "/html/body/div[2]/main/div[3]/div/div/div[1]/div[2]/div/div/div[7]/div[1]/div[2]/div/ul")
+        ))
+        li_list = ul_element.find_elements(By.TAG_NAME, "li")
 
-            if files:
-                latest = max(files, key=os.path.getctime)
-                shutil.move(latest, os.path.join(id_folder, "Datasheet", os.path.basename(latest)))
-            else:
-                print(f"⚠️ {vid_search}: ไม่เจอไฟล์ PDF ที่โหลดมา")
-                driver.back()
-        except:
-            print(f"⚠️ {vid_search}: ไม่มี Datasheet")
+        for li in li_list:
+            text_li = li.text.strip().lower()
+            a_tag = li.find_element(By.TAG_NAME, "a")
+            href = a_tag.get_attribute("href")
 
-        # --- Price ---
+                # โหลดไฟล์แบบ TearSheet → ไป Datasheet
+            try:
+                driver.execute_script("window.open(arguments[0]);", href)
+                driver.switch_to.window(driver.window_handles[-1])
+                time.sleep(2)
+                driver.execute_script("window.print();")
+                time.sleep(5)
+
+                downloaded_files = [f for f in os.listdir(base_folder) if f.endswith(".pdf")]
+                if downloaded_files:
+                    downloaded_file = downloaded_files[0]
+                    source_path = os.path.join(base_folder, downloaded_file)
+                    save_path = os.path.join(datasheet_folder, downloaded_file)
+                    shutil.move(source_path, save_path)
+                    print(f"✅ {vid_search}: บันทึก Datasheet '{downloaded_file}' เสร็จแล้ว")
+                else:
+                        print(f"⚠️ {vid_search}: ไม่พบไฟล์ PDF Datasheet ที่ดาวน์โหลด")
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
+            except Exception as e:
+                print(f"⚠️ {vid_search}: โหลดไฟล์ '{text_li}' ผิดพลาด: {e}")
+
+        # --- ดึง Price ---
         try:
             price_el = wait.until(
                 EC.presence_of_element_located((By.XPATH, "//div[4]/div[1]/div/span/span[1]/span"))
@@ -110,11 +120,13 @@ for idx, vid_search in enumerate(search_list):
     except Exception as e:
         print(f"❌ Error {vid_search}: {e}")
         prices.append("")
-        continue
+    finally:
+        try:
+            driver.quit()
+        except:
+            pass
 
 # ---------------- Save Excel ----------------
 df['Price'] = prices
 df.to_excel(excel_output, index=False)
 print(f"✅ บันทึกเสร็จ: {excel_output}")
-
-driver.quit()

@@ -46,38 +46,57 @@ def update_excel_based_on_2d_3d_datasheet(
     ]
 
     def has_files(path):
-        return os.path.exists(path) and any(os.path.isfile(os.path.join(path, f)) for f in os.listdir(path))
+        return os.path.exists(path) and any(
+            os.path.isfile(os.path.join(path, f)) for f in os.listdir(path)
+        )
 
-    for sub_folder in subdirectories:
-        folder_path = os.path.join(base_folder_path, sub_folder)
-        idxs = df[df["id_str"] == sub_folder].index
+    for i, row in df.iterrows():
+        folder_id = str(row["id"]).strip()
+        matched_folders = [f for f in subdirectories if f.split("_")[0] == folder_id]
 
-        if not idxs.empty:
-            print(f"➡️ ตรวจสอบโฟลเดอร์ '{sub_folder}'")
+        if matched_folders:
+            found_any = False
+            notes_list = []
 
-            path_2d = os.path.join(folder_path, "2D")
-            path_3d = os.path.join(folder_path, "3D")
-            path_ds = os.path.join(folder_path, "Datasheet")
+            for sub_folder in matched_folders:
+                folder_path = os.path.join(base_folder_path, sub_folder)
+                print(f"➡️ ตรวจสอบโฟลเดอร์ '{sub_folder}' (prefix: '{folder_id}')")
 
-            has_2d = has_files(path_2d)
-            has_3d = has_files(path_3d)
-            has_ds = has_files(path_ds)
+                path_2d = os.path.join(folder_path, "2D")
+                path_3d = os.path.join(folder_path, "3D")
+                path_ds = os.path.join(folder_path, "Datasheet")
 
-            if has_2d and has_3d and has_ds:
-                print("   ✅ ครบ 2D / 3D / Datasheet")
-                for i in idxs:
-                    df.at[i, status_col] = "Y"
+                has_2d = has_files(path_2d)
+                has_3d = has_files(path_3d)
+                has_ds = has_files(path_ds)
+
+                # อย่างน้อยมีไฟล์ → สถานะ Y
+                if has_2d or has_3d or has_ds:
+                    found_any = True
+
+                # บันทึกเฉพาะสิ่งที่ "ไม่มี"
+                if not has_2d:
+                    notes_list.append("ไม่มี2D")
+                if not has_3d:
+                    notes_list.append("ไม่มี3D")
+                # ⚡ Datasheet: บันทึก "ไม่มีDatasheet" เฉพาะตอนที่ไม่มีไฟล์
+                if not has_ds:
+                    notes_list.append("ไม่มีDatasheet")
+
+            if found_any:
+                df.at[i, status_col] = "Y"
             else:
-                missing = []
-                if not has_2d: missing.append("ไม่มี2D")
-                if not has_3d: missing.append("ไม่มี3D")
-                if not has_ds: missing.append("ไม่มีDatasheet")
-                note = "/".join(missing)
-                print(f"   ❌ ขาด: {note}")
-                for i in idxs:
-                    df.at[i, notes_col] = note
+                df.at[i, status_col] = "N"
+                notes_list = ["ไม่มี2D", "ไม่มี3D", "ไม่มีDatasheet"]
+
+            # ✅ รวม notes โดยตัดซ้ำ
+            df.at[i, notes_col] = "/".join(sorted(set(notes_list)))
+
         else:
-            print(f"   ⚠️ ไม่พบโฟลเดอร์สำหรับ ID '{sub_folder}' ใน Excel")
+            # ไม่พบโฟลเดอร์ที่ตรงกับ ID
+            df.at[i, status_col] = "N"
+            df.at[i, notes_col] = "ไม่มี2D/ไม่มี3D/ไม่มีDatasheet"
+            print(f"   ⚠️ ไม่พบโฟลเดอร์ที่ตรงกับ ID '{folder_id}'")
 
     df.drop(columns=["id_str"], inplace=True)
 
@@ -87,7 +106,8 @@ def update_excel_based_on_2d_3d_datasheet(
     except Exception as e:
         print(f"\n❌ ไม่สามารถบันทึกไฟล์: {e}")
 
+
 # 🔧 เรียกใช้งาน
-base_folder_path = r"D:\AUDO\2D&3D - Copy"
-excel_file_path = r"C:\Users\tanapat\Downloads\1_AUD active model id_25Jun25.xlsx"
+base_folder_path = r"D:\AUDO\2D&3D"
+excel_file_path = r"C:\Users\tanapat\Downloads\1_AUD active model id_25Jun25 (1).xlsx"
 update_excel_based_on_2d_3d_datasheet(base_folder_path, excel_file_path)

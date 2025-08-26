@@ -62,10 +62,10 @@ def create_folders_from_excel(excel_path, target_base_path):
 # --- กำหนด Path ของไฟล์ Excel และ Path ปลายทางของคุณ ---
 if __name__ == "__main__":
     # พาธของไฟล์ Excel ที่มีคอลัมน์ 'FolderName'
-    excel_file_path = r"C:\Users\phunk\Downloads\WWS_model id to get 2D-3D_20Aug25.xlsx"
+    excel_file_path = r"C:\Users\tanapat\Downloads\1_WWS_model id to get 2D-3D_20Aug25_updated style no.xlsx"
     
     # พาธของไดเรกทอรีหลักที่คุณต้องการให้โฟลเดอร์ใหม่ถูกสร้างขึ้น
-    destination_base_path = r"C:\Users\phunk\OneDrive\Desktop\WWS\2D&3D"
+    destination_base_path = r"D:\WWS\2D&3D"
 
     # เรียกใช้ฟังก์ชันเพื่อสร้างโฟลเดอร์
     create_folders_from_excel(excel_file_path, destination_base_path)

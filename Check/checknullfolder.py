@@ -1,7 +1,7 @@
 import os
 
 # ---- Path หลัก ----
-base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\13_DLE"
+base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\4_BAK_done uploaded"
 output_file = r"C:\Users\tanapat\Downloads\empty_subfolders.txt"
 
 # โฟลเดอร์ที่ต้องเช็ค

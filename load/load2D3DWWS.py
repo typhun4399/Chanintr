@@ -12,7 +12,6 @@ import sys
 
 # ---------------- CONFIG ----------------
 excel_input = r"C:\Users\tanapat\Downloads\1_WWS_model id to get 2D-3D_20Aug25_updated style no.xlsx"
-excel_output = r"C:\Users\tanapat\Downloads\1_WWS_model id to get 2D-3D_20Aug25_updated style no_Done.xlsx"
 base_folder = r"D:\WWS\2D&3D"
 log_file = r"D:\WWS\download_log.txt"
 
@@ -37,9 +36,6 @@ sys.stdout = Logger(log_file)
 df = pd.read_excel(excel_input)
 search_list = df['Style No.'].dropna().astype(str).tolist()
 id_list = df['id'].dropna().astype(str).tolist()
-
-if "Price" not in df.columns:
-    df["Price"] = ""
 
 # ---  function สำหรับดาวน์โหลดและย้ายไฟล์ ---
 def download_and_move_file(driver_instance, url, target_folder, file_context="file", custom_name=None):
@@ -178,16 +174,6 @@ try:
         if not search_successful:
             continue
 
-        # --- ดึงราคา ---
-        price = ""
-        try:
-            price_element = driver.find_element(By.XPATH, "/html/body/div[2]/main/div[3]/div/div/div[1]/div[2]/div/div/div[4]/div[1]/div/span/span[1]")
-            price = price_element.text.strip()
-            print(f"💰 {vid_search}: ราคา = {price}")
-        except:
-            print(f"⚠️ {vid_search}: ไม่พบราคาสินค้า")
-        df.loc[idx, "Price"] = price
-
         # --- ดาวน์โหลดไฟล์ PDF / 2D / 3D ---
         for li in li_list:
             li_text = li.text.strip()
@@ -213,13 +199,6 @@ try:
                 print(f"⚠️ {vid_search}: เกิดข้อผิดพลาดในการอ่านลิงก์ใน li '{li_text}': {e}")
         
         print(f"✅ {vid_search}: ตรวจสอบลิงก์และจัดการการดาวน์โหลดเสร็จสมบูรณ์")
-
-        # ✅ บันทึก Excel ทันทีหลังจากแต่ละสินค้า
-        try:
-            df.to_excel(excel_output, index=False)
-            print(f"💾 บันทึก Excel เรียบร้อย (สินค้า {vid_search})")
-        except Exception as e:
-            print(f"❌ บันทึก Excel ไม่สำเร็จ ({vid_search}): {e}")
 
         # --- ปิดแท็บที่เกิน ---
         try:

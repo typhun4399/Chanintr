@@ -3,7 +3,7 @@ from collections import defaultdict
 from difflib import SequenceMatcher
 
 # ---- Path หลัก ----
-base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\11_MUU"
+base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\2_AUD_done uploaded"
 output_file = r"C:\Users\tanapat\Desktop\similar_folders_report_with_files.txt"
 
 # ---- ฟังก์ชันตรวจสอบความคล้าย ----

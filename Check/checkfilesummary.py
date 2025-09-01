@@ -2,7 +2,7 @@ import os
 from collections import Counter
 
 # ---- Path หลัก ----
-base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\12_FDC"
+base_path = r"D:\WWS\2D&3D"
 output_file = r"C:\Users\tanapat\Desktop\file_summary.txt"
 
 def count_file_types(base_path):

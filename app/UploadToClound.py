@@ -70,7 +70,7 @@ if excel_path.lower().endswith(".csv"):
     df = pd.read_csv(excel_path)
 else:
     df = pd.read_excel(excel_path)
-ids = df['id'].dropna().astype(str).tolist()
+ids = df['id'].dropna().astype(int).astype(str).tolist()
 
 # ตั้งค่า Selenium
 chrome_options = Options()

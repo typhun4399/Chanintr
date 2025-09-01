@@ -1,7 +1,7 @@
 import os
 
 # ---- Path หลัก ----
-base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\12_FDC"
+base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\11_MUU - Usa checking"
 output_file = r"C:\Users\tanapat\Desktop\folders_with_file_target.txt"
 
 # เก็บผลลัพธ์
@@ -10,7 +10,7 @@ results = []
 # เดินทุกโฟลเดอร์ย่อย
 for root, dirs, files in os.walk(base_path):
     for file in files:
-        if file.lower().endswith((".crdownload", ".3dm")):
+        if file.lower().endswith((".jpg")):
             parent_main = os.path.basename(os.path.dirname(root))   # เช่น 14708_Hashira Floor Lamp
             subfolder = os.path.basename(root)                      # เช่น 2D หรือ 3D
             results.append((parent_main, subfolder, file))

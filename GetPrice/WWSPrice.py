@@ -10,7 +10,7 @@ from datetime import datetime
 # ---------------- CONFIG ----------------
 excel_input = r"C:\Users\tanapat\Downloads\1_WWS_model id to get 2D-3D_20Aug25_updated style no.xlsx"
 log_file = r"C:\Users\tanapat\Downloads\waterworks_price_log.txt"
-batch_save = 10  # บันทึก Excel ทุก 10 รายการ
+batch_save = 10
 
 # ฟังก์ชันเขียน log ทั้ง console และไฟล์
 def log(msg):

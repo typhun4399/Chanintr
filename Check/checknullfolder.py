@@ -1,7 +1,7 @@
 import os
 
 # ---- Path หลัก ----
-base_path = r"D:\WWS\2D&3D"
+base_path = r"D:\AUDO\2D&3D"
 output_file = r"C:\Users\tanapat\Downloads\empty_subfolders.txt"
 
 # โฟลเดอร์ที่ต้องเช็ค

@@ -1,7 +1,7 @@
 import os
 
 # ---- Path หลัก ----
-base_path = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\11_MUU - Usa checking"
+base_path = r"D:\AUDO\2D&3D"
 output_file = r"C:\Users\tanapat\Desktop\folders_2D3D_detail.txt"
 
 results = []

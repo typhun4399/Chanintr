@@ -108,6 +108,6 @@ def update_excel_based_on_2d_3d_datasheet(
 
 
 # 🔧 เรียกใช้งาน
-base_folder_path = r"D:\WWS\2D&3D"
-excel_file_path = r"C:\Users\tanapat\Downloads\1_WWS_model id to get 2D-3D_20Aug25_updated style no - Copy.xlsx"
+base_folder_path = r"D:\AUDO\2D&3D"
+excel_file_path = r"C:\Users\tanapat\Downloads\1_AUD active model id_25Jun25 (1).xlsx"
 update_excel_based_on_2d_3d_datasheet(base_folder_path, excel_file_path)

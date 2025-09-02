@@ -1,7 +1,7 @@
 import os
 import shutil
 
-base_folder_path = r"D:\WWS\2D&3D"  # เปลี่ยนเป็น path ของคุณ
+base_folder_path = r"D:\AUDO\2D&3D"
 
 def has_files(path):
     """เช็คว่ามีไฟล์ในโฟลเดอร์หรือไม่"""

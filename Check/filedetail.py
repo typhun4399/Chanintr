@@ -1,7 +1,7 @@
 import os
 
 # ---- Path หลัก ----
-base_path = r"D:\AUDO\2D&3D"
+base_path = r"D:\VCT\2D&3D"
 output_file = r"C:\Users\tanapat\Desktop\folders_2D3D_detail.txt"
 
 results = []

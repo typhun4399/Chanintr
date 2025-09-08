@@ -8,8 +8,8 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 
 # --- ตั้งค่า ---
-excel_path = r"C:\Users\tanapat\Downloads\1_WTN active model id_27Jun25 (1).xlsx"
-base_folder = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\10_WTN_done checking"
+excel_path = r"C:\Users\tanapat\Downloads\1_TAS active model id_27Jun25.xlsx"
+base_folder = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\5_TAS"
 base_url = "https://console.cloud.google.com/storage/browser/chanintr-2d3d/production/{};tab=objects?inv=1&invt=Ab5Vew&prefix=&forceOnObjectsSortingFiltering=false"
 mismatch_txt_path = r"C:\Users\tanapat\Desktop\mismatch_ids.txt"
 

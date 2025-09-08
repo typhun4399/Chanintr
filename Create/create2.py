@@ -54,7 +54,7 @@ def rename_folders(base_path, excel_path):
 
 # === เรียกใช้งาน ===
 if __name__ == "__main__":
-    base_folder_path = r"D:\test"
-    excel_file_path = r"C:\Users\tanapat\Downloads\1_WWS_model id to get 2D-3D_20Aug25_updated style no - Copy.xlsx"
+    base_folder_path = r"D:\VCT\2D&3D"
+    excel_file_path = r"C:\Users\tanapat\Downloads\1_VCT & VCC_id no to review 2D-3D_Aug25.xlsx"
 
     rename_folders(base_folder_path, excel_file_path)

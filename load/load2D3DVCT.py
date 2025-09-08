@@ -9,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
 
 # ---------------- CONFIG ----------------
-excel_input = r"C:\Users\tanapat\Downloads\1_VCT & VCC_id no to review 2D-3D_Aug25.xlsx"
+excel_input = r"D:\VCT\AllNull.xlsx"
 base_download = r"D:\VCT\2D&3D"
 log_file = "visualcomfort_log.txt"
 
@@ -29,7 +29,7 @@ options.add_experimental_option("prefs", prefs)
 options.add_argument("--disable-popup-blocking")
 options.add_argument("--disable-notifications")
 options.add_argument("--disable-extensions")
-driver = uc.Chrome(options=options)
+driver = uc.Chrome(version_main=139, options=options)
 wait = WebDriverWait(driver, 20)
 
 # ---------------- Helper log ----------------

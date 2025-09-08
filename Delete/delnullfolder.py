@@ -2,7 +2,7 @@ import os
 import shutil
 
 # ---- Path หลัก ----
-base_path = r"D:\AUDO\2D&3D"
+base_path = r"D:\VCT\2D&3D"
 
 # โฟลเดอร์ที่ต้องเช็ค
 target_folders = {"2D", "3D", "Datasheet"}

@@ -141,6 +141,7 @@ for id_value in ids:
 
         # ------------------- Upload folder -------------------
         for folder_name in target_folders:
+            time.sleep(1)
             folder_path = os.path.join(base_folder, folder_name)
             subfolders = [sf for sf in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, sf))]
             if not subfolders:

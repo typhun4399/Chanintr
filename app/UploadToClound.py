@@ -136,7 +136,6 @@ for id_value in ids:
                 )
                 upload_input.send_keys(full_path)
 
-                # รอข้อความ success สำหรับโฟลเดอร์นี้
                 success_xpath = "//mat-snack-bar-container//div[contains(text(),'successfully uploaded')]"
                 start_time = datetime.datetime.now()
 

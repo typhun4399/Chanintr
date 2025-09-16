@@ -10,6 +10,11 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+# --- เพิ่มโค้ดส่วนที่ 1: กำหนดที่อยู่และชื่อไฟล์ Log ---
+log_desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
+log_file_path = os.path.join(log_desktop_path, 'upload_automation_log.txt')
+# ----------------------------------------------------
+
 
 # ------------------- ฟังก์ชัน GUI -------------------
 def get_inputs():
@@ -97,14 +102,22 @@ time.sleep(5)  # รอโหลดหน้า GCS
 # เริ่มลูปตาม id
 base_url = "https://console.cloud.google.com/storage/browser/chanintr-2d3d/production/{};tab=objects"
 for id_value in ids:
-    target_folders = [f for f in os.listdir(base_folder) if f.startswith(id_value) and os.path.isdir(os.path.join(base_folder, f))]
+    # --- เพิ่มโค้ดส่วนที่ 2: สร้าง List เพื่อเก็บ Log ของแถวนี้ ---
+    log_messages_for_this_id = []
+    # --------------------------------------------------------
+
+    target_folders = [f for f in os.listdir(base_folder) if f.split('_')[0] == id_value and os.path.isdir(os.path.join(base_folder, f))]
     if not target_folders:
-        print(f"❌ ไม่พบโฟลเดอร์หลักสำหรับ id {id_value}")
+        message = f"❌ ไม่พบโฟลเดอร์หลักสำหรับ id {id_value}"
+        print(message)
+        log_messages_for_this_id.append(message) # แก้ไข print เดิม
         continue
 
     # เปิด GCS
     url = base_url.format(id_value)
-    print(f"\n🌐 เปิด URL: {url}")
+    message = f"\n🌐 เปิด URL: {url}"
+    print(message)
+    log_messages_for_this_id.append(message) # แก้ไข print เดิม
     driver.get(url)
     time.sleep(5)
 
@@ -117,18 +130,25 @@ for id_value in ids:
         cell_text = ""
 
     if cell_text == "No rows to display":
-        print(f"📂 Bucket {id_value} ว่าง เริ่มอัปโหลด")
+        message = f"📂 Bucket {id_value} ว่าง เริ่มอัปโหลด"
+        print(message)
+        log_messages_for_this_id.append(message) # แก้ไข print เดิม
 
         for folder_name in target_folders:
             folder_path = os.path.join(base_folder, folder_name)
             subfolders = [sf for sf in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, sf))]
             if not subfolders:
-                print(f"⚠️ ไม่มีโฟลเดอร์ย่อยใน {folder_path}")
+                message = f"⚠️ ไม่มีโฟลเดอร์ย่อยใน {folder_path}"
+                print(message)
+                log_messages_for_this_id.append(message) # แก้ไข print เดิม
                 continue
 
             for sf in subfolders:
+                time.sleep(1)
                 full_path = os.path.join(folder_path, sf)
-                print(f"⬆️ กำลังอัปโหลด: {full_path}")
+                message = f"⬆️ กำลังอัปโหลด: {full_path}"
+                print(message)
+                log_messages_for_this_id.append(message)
 
                 # เลือกปุ่ม input[type=file][webkitdirectory]
                 upload_input = wait.until(
@@ -137,23 +157,56 @@ for id_value in ids:
                 upload_input.send_keys(full_path)
 
                 success_xpath = "//mat-snack-bar-container//div[contains(text(),'successfully uploaded')]"
+                started_xpath = "//mat-snack-bar-container//div[contains(text(),'Upload started')]"
                 start_time = datetime.datetime.now()
-
+                
+                try:
+                    # ใช้ WebDriverWait ที่มี timeout สั้นๆ (5 วินาที) เพื่อเช็คโดยเฉพาะ
+                    short_wait = WebDriverWait(driver, 5)
+                    short_wait.until(EC.presence_of_element_located((By.XPATH, started_xpath)))
+                    # ถ้าเจอ popup ก็ให้ทำงานใน while loop ต่อไปตามปกติ
+                except Exception:
+                    # ถ้าไม่เจอ popup ภายใน 5 วินาที (เกิด TimeoutException)
+                    message = f"🟡 ไม่พบการแจ้งเตือนเริ่มต้นอัปโหลดสำหรับ '{sf}' (อาจเป็นโฟลเดอร์ว่าง) กำลังข้าม..."
+                    print(message)
+                    log_messages_for_this_id.append(message)
+                    time.sleep(1) 
+                    continue # ข้ามไปยัง subfolder ถัดไปในลูปทันที
+                # ========== END: โค้ดส่วนที่แก้ไข ==========
+                
+                upload_successful = False
                 while True:
                     try:
                         msg = driver.find_element(By.XPATH, success_xpath).text.strip().lower()
                         if "successfully uploaded" in msg:
-                            print(f"✅ อัปโหลดโฟลเดอร์ {sf} เสร็จแล้ว")
+                            message = f"✅ อัปโหลดโฟลเดอร์ {sf} เสร็จแล้ว"
+                            print(message)
+                            log_messages_for_this_id.append(message)
+                            upload_successful = True
                             break
                     except:
                         pass
 
                     time.sleep(2)
-                    if (datetime.datetime.now() - start_time).seconds > 1800:  # 30 นาที
-                        print(f"⚠️ อัปโหลดโฟลเดอร์ {sf} ใช้เวลาเกิน 30 นาที ข้าม")
+                    if (datetime.datetime.now() - start_time).seconds > 1800:
+                        message = f"⚠️ อัปโหลดโฟลเดอร์ {sf} ใช้เวลาเกิน 30 นาที ข้าม"
+                        print(message)
+                        log_messages_for_this_id.append(message)
                         break
-
+                if upload_successful:
+                    time.sleep(3)
     else:
-        print(f"⏩ Bucket {id_value} มีไฟล์อยู่แล้ว ({cell_text})")
+        message = f"⏩ Bucket {id_value} มีไฟล์อยู่แล้ว ({cell_text})"
+        print(message)
+        log_messages_for_this_id.append(message)
+
+    # --- เพิ่มโค้ดส่วนที่ 3: บันทึก Log ของแถวนี้ลงไฟล์ ---
+    with open(log_file_path, 'a', encoding='utf-8') as log_file:
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_file.write(f"--- [END OF ROW] ID: {id_value} | Time: {timestamp} ---\n")
+        for msg in log_messages_for_this_id:
+            log_file.write(msg.strip() + "\n")
+        log_file.write("-" * 70 + "\n\n")
+    # ----------------------------------------------------
 
 driver.quit()

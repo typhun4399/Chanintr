@@ -9,14 +9,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
-# --- เพิ่มโค้ดส่วนที่ 1: กำหนดที่อยู่และชื่อไฟล์ Log ---
 log_desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
 log_file_path = os.path.join(log_desktop_path, 'upload_automation_log.txt')
-# ----------------------------------------------------
 
-
-# ------------------- ฟังก์ชัน GUI -------------------
 def get_inputs():
     def browse_excel():
         path = filedialog.askopenfilename(
@@ -32,10 +29,11 @@ def get_inputs():
 
     def submit():
         nonlocal email, password, excel_path, folder_path
-        email = email_entry.get()
-        password = password_entry.get()
-        excel_path = excel_entry.get()
-        folder_path = folder_entry.get()
+        # --- คงข้อมูล Hardcode ไว้ตามที่ผู้ใช้ต้องการ ---
+        email = email_entry
+        password = password_entry
+        excel_path = excel_entry
+        folder_path = folder_entry
         root.destroy()
 
     email = password = excel_path = folder_path = ""
@@ -66,11 +64,12 @@ def get_inputs():
     root.mainloop()
     return email, password, excel_path, folder_path
 
-
-# ------------------- เริ่มโปรแกรมหลัก -------------------
 email, password, excel_path, base_folder = get_inputs()
 
-# โหลด id จาก Excel หรือ CSV
+if not all([email, password, excel_path, base_folder]):
+    print("❌ใส่ข้อมูลไม่ครบถ้วน")
+    exit()
+
 if excel_path.lower().endswith(".csv"):
     df = pd.read_csv(excel_path)
 else:
@@ -84,44 +83,43 @@ driver = webdriver.Chrome(options=chrome_options)
 wait = WebDriverWait(driver, 20)
 
 # ล็อกอิน Google
-driver.get("https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Fwww.google.com%2F%3Fhl%3Dth&ec=futura_exp_og_so_72776762_e&hl=th&ifkv=AdBytiPWkA-lXJsnK3T4TFbRSkqmZxItIQFbyepCsUhuk_btQR3u5Qa1JFOnV4NX_lT1FiQ7KM9JyQ&passive=true&flowName=GlifWebSignIn&flowEntry=ServiceLogin&dsh=S539092489%3A1755489428343508")
-email_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='email']")))
-email_input.clear()
-email_input.send_keys(email)
+try:
+    driver.get("https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Fwww.google.com%2F%3Fhl%3Dth&ec=futura_exp_og_so_72776762_e&hl=th&ifkv=AdBytiPWkA-lXJsnK3T4TFbRSkqmZxItIQFbyepCsUhuk_btQR3u5Qa1JFOnV4NX_lT1FiQ7KM9JyQ&passive=true&flowName=GlifWebSignIn&flowEntry=ServiceLogin&dsh=S539092489%3A1755489428343508")
+    email_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='email']")))
+    email_input.clear()
+    email_input.send_keys(email)
+    driver.find_element(By.ID, "identifierNext").click()
+    password_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='password']")))
+    password_input.clear()
+    password_input.send_keys(password)
+    driver.find_element(By.ID, "passwordNext").click()
+    print("✅ ล็อกอินสำเร็จ")
+    time.sleep(5)
+except Exception as e:
+    print(f"❌ เกิดข้อผิดพลาดระหว่างการล็อกอิน: {e}")
+    driver.quit()
+    exit()
 
-driver.find_element(By.ID, "identifierNext").click()
-
-password_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='password']")))
-password_input.clear()
-password_input.send_keys(password)
-
-driver.find_element(By.ID, "passwordNext").click()
-
-time.sleep(5)  # รอโหลดหน้า GCS
-
-# เริ่มลูปตาม id
 base_url = "https://console.cloud.google.com/storage/browser/chanintr-2d3d/production/{};tab=objects"
 for id_value in ids:
-    # --- เพิ่มโค้ดส่วนที่ 2: สร้าง List เพื่อเก็บ Log ของแถวนี้ ---
+    
     log_messages_for_this_id = []
-    # --------------------------------------------------------
 
     target_folders = [f for f in os.listdir(base_folder) if f.split('_')[0] == id_value and os.path.isdir(os.path.join(base_folder, f))]
     if not target_folders:
         message = f"❌ ไม่พบโฟลเดอร์หลักสำหรับ id {id_value}"
         print(message)
-        log_messages_for_this_id.append(message) # แก้ไข print เดิม
+        log_messages_for_this_id.append(message)
         continue
 
-    # เปิด GCS
     url = base_url.format(id_value)
     message = f"\n🌐 เปิด URL: {url}"
     print(message)
-    log_messages_for_this_id.append(message) # แก้ไข print เดิม
+    log_messages_for_this_id.append(message)
     driver.get(url)
-    time.sleep(5)
+    
+    time.sleep(5) 
 
-    # เช็ค "No rows to display"
     try:
         no_rows_xpath = "//td[contains(text(),'No rows to display')]"
         cell = wait.until(EC.presence_of_element_located((By.XPATH, no_rows_xpath)))
@@ -132,15 +130,16 @@ for id_value in ids:
     if cell_text == "No rows to display":
         message = f"📂 Bucket {id_value} ว่าง เริ่มอัปโหลด"
         print(message)
-        log_messages_for_this_id.append(message) # แก้ไข print เดิม
+        log_messages_for_this_id.append(message)
 
         for folder_name in target_folders:
             folder_path = os.path.join(base_folder, folder_name)
             subfolders = [sf for sf in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, sf))]
+            
             if not subfolders:
                 message = f"⚠️ ไม่มีโฟลเดอร์ย่อยใน {folder_path}"
                 print(message)
-                log_messages_for_this_id.append(message) # แก้ไข print เดิม
+                log_messages_for_this_id.append(message) 
                 continue
 
             for sf in subfolders:
@@ -150,63 +149,60 @@ for id_value in ids:
                 print(message)
                 log_messages_for_this_id.append(message)
 
-                # เลือกปุ่ม input[type=file][webkitdirectory]
-                upload_input = wait.until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file'][webkitdirectory]"))
-                )
-                upload_input.send_keys(full_path)
-
-                success_xpath = "//mat-snack-bar-container//div[contains(text(),'successfully uploaded')]"
-                started_xpath = "//mat-snack-bar-container//div[contains(text(),'Upload started')]"
-                start_time = datetime.datetime.now()
-                
                 try:
-                    # ใช้ WebDriverWait ที่มี timeout สั้นๆ (5 วินาที) เพื่อเช็คโดยเฉพาะ
-                    short_wait = WebDriverWait(driver, 5)
-                    short_wait.until(EC.presence_of_element_located((By.XPATH, started_xpath)))
-                    # ถ้าเจอ popup ก็ให้ทำงานใน while loop ต่อไปตามปกติ
-                except Exception:
-                    # ถ้าไม่เจอ popup ภายใน 5 วินาที (เกิด TimeoutException)
-                    message = f"🟡 ไม่พบการแจ้งเตือนเริ่มต้นอัปโหลดสำหรับ '{sf}' (อาจเป็นโฟลเดอร์ว่าง) กำลังข้าม..."
-                    print(message)
-                    log_messages_for_this_id.append(message)
-                    time.sleep(1) 
-                    continue # ข้ามไปยัง subfolder ถัดไปในลูปทันที
-                # ========== END: โค้ดส่วนที่แก้ไข ==========
-                
-                upload_successful = False
-                while True:
+                    upload_input = wait.until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file'][webkitdirectory]"))
+                    )
+                    upload_input.send_keys(full_path)
+                    
+                    # --- ⚙️ ตรรกะการรอแบบใหม่ที่ฉลาดขึ้น ---
+                    started_xpath = "//div[contains(text(),'Upload started')]"
+                    success_xpath = "//div[contains(text(),'successfully uploaded')]"
+
                     try:
-                        msg = driver.find_element(By.XPATH, success_xpath).text.strip().lower()
-                        if "successfully uploaded" in msg:
+                        # 1. รอให้ข้อความ "Upload started" แสดงขึ้นมาก่อน (รอไม่เกิน 10 วินาที)
+                        upload_started_wait = WebDriverWait(driver, 20)
+                        upload_started_wait.until(EC.presence_of_element_located((By.XPATH, started_xpath)))
+                        
+                        # 2. เมื่อการอัปโหลดเริ่มแล้ว ให้รอจนกว่าข้อความ "Upload started" จะ "หายไป" (รอสูงสุด 30 นาที)
+                        upload_finished_wait = WebDriverWait(driver, 1800)
+                        upload_finished_wait.until(EC.invisibility_of_element_located((By.XPATH, started_xpath)))
+                        time.sleep(2)
+
+                        try:
+                            upload_sucsess_wait = WebDriverWait(driver, 20)
+                            upload_sucsess_wait.until(EC.presence_of_element_located((By.XPATH, success_xpath)))
                             message = f"✅ อัปโหลดโฟลเดอร์ {sf} เสร็จแล้ว"
                             print(message)
                             log_messages_for_this_id.append(message)
-                            upload_successful = True
-                            break
-                    except:
-                        pass
+                            time.sleep(2)
 
-                    time.sleep(2)
-                    if (datetime.datetime.now() - start_time).seconds > 1800:
-                        message = f"⚠️ อัปโหลดโฟลเดอร์ {sf} ใช้เวลาเกิน 30 นาที ข้าม"
+                        except:
+                            message = f"🟡 โฟลเดอร์ '{sf}' ว่างหรือไม่สำเร็จ (ไม่มีข้อความยืนยัน) กำลังข้าม..."
+                            print(message)
+                            log_messages_for_this_id.append(message)
+
+                    except TimeoutException:
+                        message = f"🟡 โฟลเดอร์ '{sf}' ว่าง (ไม่พบการแจ้งเตือนเริ่มต้น) กำลังข้าม..."
                         print(message)
                         log_messages_for_this_id.append(message)
-                        break
-                if upload_successful:
-                    time.sleep(3)
+
+                except Exception as e:
+                    message = f"❌ เกิดข้อผิดพลาดระหว่างอัปโหลด '{sf}': {e}"
+                    print(message)
+                    log_messages_for_this_id.append(message)
+
     else:
-        message = f"⏩ Bucket {id_value} มีไฟล์อยู่แล้ว ({cell_text})"
+        message = f"⏩ Bucket {id_value} มีไฟล์อยู่แล้ว"
         print(message)
         log_messages_for_this_id.append(message)
 
-    # --- เพิ่มโค้ดส่วนที่ 3: บันทึก Log ของแถวนี้ลงไฟล์ ---
     with open(log_file_path, 'a', encoding='utf-8') as log_file:
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_file.write(f"--- [END OF ROW] ID: {id_value} | Time: {timestamp} ---\n")
         for msg in log_messages_for_this_id:
             log_file.write(msg.strip() + "\n")
         log_file.write("-" * 70 + "\n\n")
-    # ----------------------------------------------------
 
+print("\n🎉 การทำงานทั้งหมดเสร็จสิ้น")
 driver.quit()

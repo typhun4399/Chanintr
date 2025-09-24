@@ -12,8 +12,8 @@ import time
 import logging
 
 # --- CONFIG ---
-EXCEL_PATH = r"C:\Users\tanapat\Downloads\Book1.xlsx"
-BASE_FOLDER = r"D:\AUDO\2D&3D"
+EXCEL_PATH = r"C:\Users\tanapat\Downloads\1_MGC active model id_25Jun25 (2).xlsx"
+BASE_FOLDER = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\4_MGC_done uploaded"
 BASE_URL = "https://console.cloud.google.com/storage/browser/chanintr-2d3d/production/{};tab=objects?inv=1&invt=Ab5Vew&prefix=&forceOnObjectsSortingFiltering=false"
 MISMATCH_TXT_PATH = r"C:\Users\tanapat\Desktop\mismatch_ids.txt"
 GCS_TABLE_BODY_XPATH = "//cfc-table//table/tbody"
@@ -152,9 +152,25 @@ def process_single_id(driver: webdriver.Chrome, wait: WebDriverWait, id_value: s
         return
 
     folder_path = os.path.join(BASE_FOLDER, target_folders[0])
+
+    # --- START: ตรวจสอบโฟลเดอร์ 2D, 3D, Datasheet ก่อนอัปโหลด ---
+    required_folders = ["2D", "3D", "Datasheet"]
+    has_files_to_upload = False
+    for subfolder_name in required_folders:
+        subfolder_path = os.path.join(folder_path, subfolder_name)
+        if os.path.isdir(subfolder_path):
+            if any(os.path.isfile(os.path.join(subfolder_path, f)) for f in os.listdir(subfolder_path)):
+                has_files_to_upload = True
+                break
+
+    if not has_files_to_upload:
+        logging.info(f"ID {id_value}: ข้ามการทำงาน เนื่องจากโฟลเดอร์ 2D, 3D และ Datasheet ไม่มีไฟล์อยู่เลย")
+        return
+    # --- END: สิ้นสุดการตรวจสอบ ---
+
     local_subfolders = [f for f in os.listdir(folder_path)
                         if os.path.isdir(os.path.join(folder_path, f))]
-    logging.info(f"ID {id_value}: พบ {len(local_subfolders)} โฟลเดอร์ย่อย")
+    logging.info(f"ID {id_value}: พบ {len(local_subfolders)} โฟลเดอร์ย่อย, เริ่มการซิงค์...")
 
     url = BASE_URL.format(id_value)
     driver.get(url)
@@ -166,6 +182,11 @@ def process_single_id(driver: webdriver.Chrome, wait: WebDriverWait, id_value: s
             subfolder_path = os.path.join(folder_path, subfolder_name)
             local_file_count = len([f for f in os.listdir(subfolder_path)
                                     if os.path.isfile(os.path.join(subfolder_path, f))])
+            
+            # ถ้าโฟลเดอร์ใน local ไม่มีไฟล์เลย ให้ข้ามไปโฟลเดอร์ถัดไป
+            if local_file_count == 0:
+                logging.info(f"  -> '{subfolder_name}' ใน local ไม่มีไฟล์, ข้ามการตรวจสอบ")
+                continue
 
             try:
                 link_xpath = f"//cfc-table//table//a[contains(text(), '{subfolder_name}')]"
@@ -238,3 +259,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

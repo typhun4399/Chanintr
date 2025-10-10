@@ -12,10 +12,9 @@ import time
 import logging
 
 # --- CONFIG ---
-EXCEL_PATH = r"C:\Users\tanapat\Downloads\1_MGC active model id_25Jun25 (2).xlsx"
-BASE_FOLDER = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\4_MGC_done uploaded"
+EXCEL_PATH = r"C:\Users\tanapat\Downloads\1_MUU active model id_27Jun25 - Done_updated.xlsx"
+BASE_FOLDER = r"G:\Shared drives\Data Management\1_Daily Operation\3. 2D & 3D files\11_MUU_done uploaded"
 BASE_URL = "https://console.cloud.google.com/storage/browser/chanintr-2d3d/production/{};tab=objects?inv=1&invt=Ab5Vew&prefix=&forceOnObjectsSortingFiltering=false"
-MISMATCH_TXT_PATH = r"C:\Users\tanapat\Desktop\mismatch_ids.txt"
 GCS_TABLE_BODY_XPATH = "//cfc-table//table/tbody"
 MAX_UPLOAD_WAIT_SECONDS = 3600  # 1 ชั่วโมง
 
@@ -246,12 +245,6 @@ def main():
         logging.error("ล็อกอิน Google ล้มเหลว")
         driver.quit()
         return
-
-    # Loop
-    logging.info("=== เริ่มการซิงค์ข้อมูล ===")
-    with open(MISMATCH_TXT_PATH, "w", encoding="utf-8") as txt_file:
-        for id_value in ids:
-            process_single_id(driver, wait, id_value, txt_file)
 
     logging.info("=== เสร็จสิ้น ===")
     driver.quit()

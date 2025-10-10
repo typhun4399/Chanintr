@@ -10,6 +10,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 
 # --- 1. ส่วน UI และการรับข้อมูล ---
 
@@ -274,27 +276,31 @@ def run_delete_mode(email, password, excel_path):
                 print(msg)
                 log_messages.append(msg) # << บรรทัดที่ 3: เพิ่มข้อความลงใน Log
 
-                # 1. คลิก Checkbox เพื่อเลือกทั้งหมด
-                select_all_checkbox = wait.until(EC.element_to_be_clickable((By.XPATH, "//th//mat-checkbox")))
+                select_all_checkbox = wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, "//mat-pseudo-checkbox")
+                ))
                 select_all_checkbox.click()
-                time.sleep(1)
 
-                # 2. คลิกปุ่ม Delete
-                delete_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@aria-label, 'Delete')]")))
+                delete_button = wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, "//button[contains(., 'Delete')]")
+                ))
                 delete_button.click()
                 time.sleep(1)
-
-                # 3. ยืนยันการลบในหน้าต่าง pop-up
-                confirm_input = wait.until(EC.visibility_of_element_located((By.XPATH, "//input[@aria-label='Type DELETE to confirm']")))
+                confirm_input = wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, "//input[@type='text']")
+                ))
                 confirm_input.send_keys("DELETE")
                 time.sleep(1)
 
-                confirm_delete_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button/span[contains(text(), 'Delete')]/..")))
-                confirm_delete_button.click()
+                actions = ActionChains(driver)
+                actions.send_keys(Keys.ENTER).perform()
+                print("🗑️ Confirm delete button")
 
-                # รอจนกว่าจะกลับมาหน้าว่าง
-                WebDriverWait(driver, 300).until(EC.presence_of_element_located((By.XPATH, "//td[contains(text(),'No rows to display')]")))
+                time.sleep(4)
                 
+                # รอข้อความ success
+                success_xpath = "//mat-snack-bar-container//div[contains(text(),'deleted')]"
+                wait.until(EC.visibility_of_element_located((By.XPATH, success_xpath)))
                 msg = f"✅ ลบไฟล์ทั้งหมดใน Bucket {id_value} สำเร็จ"
                 print(msg)
                 log_messages.append(msg) # << บรรทัดที่ 4: เพิ่มข้อความลงใน Log

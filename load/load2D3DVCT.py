@@ -9,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
 
 # ---------------- CONFIG ----------------
-excel_input = r"D:\VCT\AllNull.xlsx"
+excel_input = r"C:\Users\tanapat\Downloads\VCT SKU_to check New USD_9Oct25.xlsx"
 base_download = r"D:\VCT\2D&3D"
 log_file = "visualcomfort_log.txt"
 
@@ -59,7 +59,7 @@ def wait_for_download(directory, timeout=60):
 
 # ---------------- วนลูป Model No. ----------------
 for idx, row in df.iterrows():
-    model_no_raw = str(row["Model No."]).strip()
+    model_no_raw = str(row["Vendor No. for Price Check"]).strip()
     id_value = str(row["id"]).strip() if "id" in df.columns else model_no_raw
     if not model_no_raw or model_no_raw.lower() == "nan":
         continue

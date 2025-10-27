@@ -2,8 +2,14 @@ import os
 import pandas as pd
 import time
 import datetime
+
+# --- การ Import สำหรับ UI ---
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
+import ttkbootstrap as tb
+from ttkbootstrap.dialogs import Messagebox
+
+# --- การ Import สำหรับ Selenium (เหมือนเดิม) ---
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -33,11 +39,11 @@ def get_inputs_with_mode_selection():
     # ฟังก์ชันเปิด/ปิดช่อง Folder Path ตามโหมดที่เลือก
     def toggle_folder_input():
         if mode_var.get() == "upload":
-            folder_entry.config(state=tk.NORMAL)
-            folder_browse_button.config(state=tk.NORMAL)
+            folder_entry.config(state="normal")
+            folder_browse_button.config(state="normal")
         elif mode_var.get() == "delete":
-            folder_entry.config(state=tk.DISABLED)
-            folder_browse_button.config(state=tk.DISABLED)
+            folder_entry.config(state="disabled")
+            folder_browse_button.config(state="disabled")
 
     # ฟังก์ชันเมื่อกดปุ่ม "เริ่มทำงาน"
     def submit():
@@ -51,10 +57,12 @@ def get_inputs_with_mode_selection():
 
         # ตรวจสอบข้อมูล
         if not all([email, password, excel_path]):
-            messagebox.showerror("ข้อมูลไม่ครบ", "กรุณากรอก Email, Password, และเลือกไฟล์ Excel")
+            # ใช้ Messagebox ของ ttkbootstrap
+            Messagebox.show_error(title="ข้อมูลไม่ครบ", message="กรุณากรอก Email, Password, และเลือกไฟล์ Excel")
             return
         if selected_mode == "upload" and not folder_path:
-            messagebox.showerror("ข้อมูลไม่ครบ", "กรุณาเลือกโฟลเดอร์สำหรับโหมด Upload")
+            # ใช้ Messagebox ของ ttkbootstrap
+            Messagebox.show_error(title="ข้อมูลไม่ครบ", message="กรุณาเลือกโฟลเดอร์สำหรับโหมด Upload")
             return
             
         root.destroy()
@@ -62,57 +70,65 @@ def get_inputs_with_mode_selection():
     # ตั้งค่าตัวแปรสำหรับ UI
     selected_mode = email = password = excel_path = folder_path = ""
 
-    # สร้างหน้าต่างหลัก
-    root = tk.Tk()
+    root = tb.Window(themename="litera") 
     root.title("Cloud Storage Automation")
     root.resizable(False, False)
 
     # --- Frame สำหรับเลือกโหมด ---
-    mode_frame = tk.Frame(root, padx=10, pady=10)
+    mode_frame = tb.Frame(root, padding=(10, 10))
     mode_frame.pack(fill="x")
     
-    mode_var = tk.StringVar(value="upload") # ค่าเริ่มต้นคือ upload
+    mode_var = tk.StringVar(value="upload") # ใช้ tk.StringVar เหมือนเดิม
     
-    tk.Label(mode_frame, text="เลือกโหมดการทำงาน:").pack(side="left", padx=5)
-    tk.Radiobutton(mode_frame, text="⬆️ Upload", variable=mode_var, value="upload", command=toggle_folder_input).pack(side="left")
-    tk.Radiobutton(mode_frame, text="🗑️ Delete", variable=mode_var, value="delete", command=toggle_folder_input).pack(side="left")
+    tb.Label(mode_frame, text="เลือกโหมดการทำงาน:").pack(side="left", padx=(0, 10))
+    
+    # ใช้ Radiobutton สไตล์ 'toolbutton' เพื่อให้ดูทันสมัย
+    rb_upload = tb.Radiobutton(mode_frame, text="⬆️ Upload", variable=mode_var, value="upload", command=toggle_folder_input, bootstyle="primary-toolbutton")
+    rb_upload.pack(side="left", fill="x", expand=True, padx=2)
+    
+    rb_delete = tb.Radiobutton(mode_frame, text="🗑️ Delete", variable=mode_var, value="delete", command=toggle_folder_input, bootstyle="primary-toolbutton")
+    rb_delete.pack(side="left", fill="x", expand=True, padx=2)
 
-    # --- Frame สำหรับกรอกข้อมูล ---
-    main_frame = tk.Frame(root, padx=10, pady=5)
-    main_frame.pack()
+    # --- Frame สำหรับกรอกข้อมูล (ใช้ .grid() เหมือนเดิม แต่ปรับปรุงเล็กน้อย) ---
+    main_frame = tb.Frame(root, padding=(10, 5))
+    main_frame.pack(fill="x", expand=True)
+    # ตั้งค่าให้คอลัมน์ที่ 1 (ช่องกรอกข้อมูล) ขยายตามขนาดหน้าต่าง
+    main_frame.columnconfigure(1, weight=1) 
 
     # Email
-    tk.Label(main_frame, text="Email:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
-    email_entry = tk.Entry(main_frame, width=50)
-    email_entry.grid(row=0, column=1, columnspan=2, padx=5, pady=5)
+    tb.Label(main_frame, text="Email:").grid(row=0, column=0, sticky="e", padx=5, pady=8)
+    email_entry = tb.Entry(main_frame)
+    email_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=8) # sticky='ew' ให้ขยายเต็มความกว้างคอลัมน์
 
     # Password
-    tk.Label(main_frame, text="Password:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-    password_entry = tk.Entry(main_frame, width=50, show="*")
-    password_entry.grid(row=1, column=1, columnspan=2, padx=5, pady=5)
+    tb.Label(main_frame, text="Password:").grid(row=1, column=0, sticky="e", padx=5, pady=8)
+    password_entry = tb.Entry(main_frame, show="*")
+    password_entry.grid(row=1, column=1, sticky="ew", padx=5, pady=8)
 
     # Excel Path
-    tk.Label(main_frame, text="Excel Path:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
-    excel_entry = tk.Entry(main_frame, width=50)
-    excel_entry.grid(row=2, column=1, columnspan=2, padx=5, pady=5)
-    tk.Button(main_frame, text="Browse...", command=browse_excel).grid(row=2, column=3, padx=5, pady=5)
+    tb.Label(main_frame, text="Excel Path:").grid(row=2, column=0, sticky="e", padx=5, pady=8)
+    excel_entry = tb.Entry(main_frame)
+    excel_entry.grid(row=2, column=1, sticky="ew", padx=5, pady=8)
+    tb.Button(main_frame, text="Browse...", command=browse_excel, bootstyle="outline-secondary").grid(row=2, column=2, padx=5, pady=8)
 
     # Folder Path (สำหรับ Upload)
-    tk.Label(main_frame, text="Folder Path:").grid(row=3, column=0, sticky="e", padx=5, pady=5)
-    folder_entry = tk.Entry(main_frame, width=50)
-    folder_entry.grid(row=3, column=1, columnspan=2, padx=5, pady=5)
-    folder_browse_button = tk.Button(main_frame, text="Browse...", command=browse_folder)
-    folder_browse_button.grid(row=3, column=3, padx=5, pady=5)
+    tb.Label(main_frame, text="Folder Path:").grid(row=3, column=0, sticky="e", padx=5, pady=8)
+    folder_entry = tb.Entry(main_frame)
+    folder_entry.grid(row=3, column=1, sticky="ew", padx=5, pady=8)
+    folder_browse_button = tb.Button(main_frame, text="Browse...", command=browse_folder, bootstyle="outline-secondary")
+    folder_browse_button.grid(row=3, column=2, padx=5, pady=8)
 
     # ปุ่ม Submit
-    tk.Button(root, text="🚀 เริ่มทำงาน", command=submit, font=("Segoe UI", 10, "bold"), bg="#4CAF50", fg="white").pack(pady=15)
+    # ใช้ bootstyle="success" สำหรับปุ่มสีเขียว และ pack(fill='x') ให้เต็มความกว้าง
+    submit_button = tb.Button(root, text="🚀 เริ่มทำงาน", command=submit, bootstyle="success", padding=(10, 10))
+    submit_button.pack(pady=15, padx=10, fill="x")
     
     toggle_folder_input() # เรียกครั้งแรกเพื่อตั้งค่าสถานะของช่อง Folder
     root.mainloop()
     
     return selected_mode, email, password, excel_path, folder_path
 
-# --- 2. ส่วนฟังก์ชันการทำงานหลัก (แยกตามโหมด) ---
+# --- 2. ส่วนฟังก์ชันการทำงานหลัก (เหมือนเดิมทุกประการ) ---
 
 def setup_driver():
     """ตั้งค่าและคืนค่า Selenium WebDriver"""
@@ -151,7 +167,7 @@ def write_log(id_value, messages):
             log_file.write(msg.strip() + "\n")
         log_file.write("-" * 70 + "\n\n")
 
-# --- โหมด UPLOAD ---
+# --- โหมด UPLOAD (เหมือนเดิมทุกประการ) ---
 def run_upload_mode(email, password, excel_path, base_folder):
     print("\n--- ⬆️ เริ่มโหมด UPLOAD ---")
     driver = setup_driver()
@@ -240,7 +256,7 @@ def run_upload_mode(email, password, excel_path, base_folder):
     print("\n🎉 โหมด Upload ทำงานเสร็จสิ้น")
     driver.quit()
 
-# --- โหมด DELETE ---
+# --- โหมด DELETE (เหมือนเดิมทุกประการ) ---
 def run_delete_mode(email, password, excel_path):
     print("\n--- 🗑️ เริ่มโหมด DELETE ---")
     driver = setup_driver()
@@ -319,7 +335,7 @@ def run_delete_mode(email, password, excel_path):
     print("\n🎉 โหมด Delete ทำงานเสร็จสิ้น")
     driver.quit()
 
-# --- 3. ส่วนเริ่มต้นโปรแกรม ---
+# --- 3. ส่วนเริ่มต้นโปรแกรม (เหมือนเดิมทุกประการ) ---
 if __name__ == "__main__":
     mode, email, password, excel_path, folder_path = get_inputs_with_mode_selection()
 

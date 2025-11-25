@@ -12,8 +12,8 @@ from selenium.common.exceptions import TimeoutException
 # ---------------- CONFIG ----------------
 GOOGLE_EMAIL = "tanapat@chanintr.com"
 GOOGLE_PASSWORD = "Qwerty12345$$"
-OUTPUT_FILE = r"C:\Users\tanapat\Desktop\vendor_code.xlsx"
-link_prod = "https://base.chanintr.com/brand/8/products?currentPage=1&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
+OUTPUT_FILE = r"C:\Users\tanapat\Desktop\base_products.xlsx"
+link_prod = "https://base.chanintr.com/brand/95/products?currentPage=1&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
 
 # ---------------- Chrome Options ----------------
 chrome_options = Options()
@@ -59,70 +59,40 @@ try:
                 items = WebDriverWait(driver, 10).until(
                     EC.presence_of_all_elements_located((By.CSS_SELECTOR, "section.wrapper-container ul li a"))
                 )
-
                 page_data.clear()
                 for a in items:
-
-                    # --- ชื่อสินค้า ---
+                    # ดึงชื่อสินค้า
                     try:
                         name = a.find_element(By.CSS_SELECTOR, "section div.product-title-container h3").text.strip()
                     except:
                         name = ""
 
-                    # --- Product Number ---
-                    try:
-                        product_number = a.find_element(
-                            By.CSS_SELECTOR,
-                            "section div.product-number-container"
-                        ).text.strip()
-                    except:
-                        product_number = ""
-
-                    # --- Product Type ---
-                    try:
-                        product_type = a.find_element(
-                            By.CSS_SELECTOR,
-                            "section div.product-title-container div p"
-                        ).text.strip()
-                    except:
-                        product_type = ""
-
-                    # --- ลิงก์สินค้า ---
+                    # ดึงลิงก์สินค้า
                     href = a.get_attribute("href")
 
-                    # --- Extra Info (Status) ---
+                    # ดึง extra info
                     try:
-                        extra_info = a.find_element(
-                            By.CSS_SELECTOR,
-                            "section div.cell-md > div > div"
-                        ).text.strip()
+                        extra_info = a.find_element(By.CSS_SELECTOR, "section div.cell-md > div > div").text.strip()
                     except:
                         extra_info = ""
 
                     if name:
                         page_data.append({
                             "name": name,
-                            "product_number": product_number,
-                            "product_type": product_type,
                             "url": href,
                             "status": extra_info
                         })
-
-                        logging.info(
-                            f"🔹 {name} | PN: {product_number} | Type: {product_type} | {href} | Status: {extra_info}"
-                        )
+                        logging.info(f"🔹 เจอสินค้า: {name} | {href} | Status : {extra_info}")
 
                 if len(page_data) > 0:
                     return page_data
                 else:
-                    logging.warning(f"⚠️ ยังไม่มีสินค้า ลองรอบที่ {attempt+1}")
+                    logging.warning(f"⚠️ ยังไม่มีสินค้าบนหน้านี้ ลองรอบที่ {attempt+1}")
                     time.sleep(2)
-
             except TimeoutException:
-                logging.warning(f"⏳ Timeout รอบที่ {attempt+1}")
+                logging.warning(f"⏳ รอสินค้าไม่เจอครั้งที่ {attempt+1}")
                 time.sleep(2)
-
-        logging.error("❌ ไม่พบสินค้าใด ๆ")
+        logging.error("❌ ไม่พบสินค้าใด ๆ หลังรอหลายรอบ")
         return page_data
 
     # ---------- STEP 5: วนทุกหน้า ----------
@@ -132,12 +102,11 @@ try:
     while True:
         logging.info(f"📄 กำลังดึงข้อมูลหน้า {page} ...")
         page_links = extract_page_data()
-
         while len(page_links) == 0:
-            logging.info("🔄 พบสินค้า 0 รายการ กำลัง retry ...")
+            logging.info("🔄 จำนวนสินค้า=0, รอและลองดึงใหม่")
             time.sleep(2)
             page_links = extract_page_data()
-
+        logging.info(f"จำนวนสินค้าในหน้านี้: {len(page_links)}")
         all_data.extend(page_links)
 
         # หา next page
@@ -153,24 +122,23 @@ try:
                 driver.execute_script("arguments[0].scrollIntoView(true);", next_btn)
                 time.sleep(1)
                 next_btn.click()
+                logging.info(f"➡️ ไปหน้าถัดไป (หน้า {page + 1})")
                 page += 1
-                logging.info(f"➡️ ไปหน้า {page}")
                 time.sleep(2)
             else:
-                logging.info("✅ ถึงหน้าสุดท้ายแล้ว")
+                logging.info("✅ ไม่มีหน้าถัดไปแล้ว — หยุดลูป")
                 break
-
         except Exception:
-            logging.info("✅ ไม่มีปุ่ม next")
+            logging.info("✅ ไม่มีปุ่ม Next — หยุดลูป")
             break
 
     # ---------- STEP 6: Export Excel ----------
     if all_data:
         df = pd.DataFrame(all_data)
         df.to_excel(OUTPUT_FILE, index=False)
-        logging.info(f"✅ บันทึก Excel เสร็จ: {OUTPUT_FILE}")
+        logging.info(f"✅ บันทึกข้อมูลลง Excel เสร็จ: {OUTPUT_FILE}")
     else:
-        logging.warning("⚠️ ไม่มีข้อมูลสำหรับบันทึก")
+        logging.warning("⚠️ ไม่พบสินค้าใด ๆ สำหรับบันทึก")
 
     driver.quit()
 

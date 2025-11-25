@@ -11,8 +11,8 @@ from urllib.parse import urlparse
 import sys
 
 # ---------------- CONFIG ----------------
-excel_input = r"C:\Users\tanapat\Downloads\1_WWS_model id to get 2D-3D_20Aug25_updated style no.xlsx"
-base_folder = r"D:\WWS\2D&3D"
+excel_input = r"C:\Users\tanapat\Downloads\Models check.xlsx"
+base_folder = r"D:\WWS\2D&3D - Update"
 log_file = r"D:\WWS\download_log.txt"
 
 # --- redirect print ไป log file ---
@@ -95,7 +95,7 @@ prefs = {
 }
 options.add_experimental_option("prefs", prefs)
 
-driver = uc.Chrome(options=options)
+driver = uc.Chrome(options=options, version_main=141)
 wait = WebDriverWait(driver, 20)
 
 try:

@@ -5,29 +5,31 @@ import pandas as pd
 from urllib.parse import urljoin
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+import undetected_chromedriver as uc
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
 # โหลด Excel
-excel_path = r"C:\Users\tanapat\Downloads\1_HMI model to get 2D_3D_12Sep25.xlsx"
+excel_path = r"C:\Users\tanapat\Downloads\hermanmiller_products_with_cat_checked.xlsx"
 df = pd.read_excel(excel_path)
 
 # Base path สำหรับเก็บไฟล์
-base_path = r"D:\HMI\2D&3D"
+base_path = r"D:\HMI\loaded"
 if not os.path.exists(base_path):
     os.makedirs(base_path)
 
-# ตั้งค่า Chrome
-chrome_options = Options()
-chrome_options.add_argument("--headless=new")  # ซ่อน browser
-driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
+# ---------------- BROWSER ----------------
+options = uc.ChromeOptions()
+#options.add_argument("--headless=new")  # ซ่อน browser
+driver = uc.Chrome(version_main=141, options=options)
 driver.maximize_window()
+
 
 try:
     for idx, row in df.iterrows():
-        product_title = str(row.get("product_title", f"Product_{idx+1}")).strip()
-        link = str(row.get("Link", "")).strip()
+        product_title = str(row.get("Category", f"Product_{idx+1}")).strip()
+        link = str(row.get("LoadLink", "")).strip()
 
         if not link or link.lower() == "nan":
             print(f"❌ แถวที่ {idx+1} ไม่มีลิงก์")
@@ -45,6 +47,14 @@ try:
         print(f"\n🔗 เปิดลิงก์: {link}")
         driver.get(link)
         time.sleep(2)
+        
+        try:
+            first_tab = driver.find_element(By.XPATH, "/html/body/div[2]/div/div[2]/div/div/div/div[1]/div/div[2]/div/div/div/div/ul/li[1]/a")
+            driver.execute_script("arguments[0].click();", first_tab)
+            time.sleep(2)
+            print("✅ กด tab แรกเรียบร้อย")
+        except Exception as e:
+            print(f"⚠️ ไม่สามารถกด tab แรก: {e}")
 
         # หา resource items
         resources = driver.find_elements(By.CSS_SELECTOR, "div.pro-resource-item.col-lg-10.col-lg-offset-1")

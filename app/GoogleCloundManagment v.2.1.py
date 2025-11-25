@@ -1,15 +1,15 @@
+# -*- coding: utf-8 -*-
 import os
 import pandas as pd
 import time
 import datetime
-
-# --- การ Import สำหรับ UI ---
 import tkinter as tk
 from tkinter import filedialog
 import ttkbootstrap as tb
 from ttkbootstrap.dialogs import Messagebox
+from ttkbootstrap import ttk
 
-# --- การ Import สำหรับ Selenium (เหมือนเดิม) ---
+# Selenium
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -20,10 +20,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 
 # --- 1. ส่วน UI และการรับข้อมูล ---
-
 def get_inputs_with_mode_selection():
-    
-    # ฟังก์ชันสำหรับปุ่ม Browse
+    # --- ปุ่ม Browse ---
     def browse_excel():
         path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls *.csv")])
         if path:
@@ -36,39 +34,56 @@ def get_inputs_with_mode_selection():
             folder_entry.delete(0, tk.END)
             folder_entry.insert(0, path)
 
-    # ฟังก์ชันเปิด/ปิดช่อง Folder Path ตามโหมดที่เลือก
+    # --- เปิด/ปิดช่อง Folder ตามโหมด ---
     def toggle_folder_input():
         if mode_var.get() == "upload":
             folder_entry.config(state="normal")
             folder_browse_button.config(state="normal")
-        elif mode_var.get() == "delete":
+        else:
             folder_entry.config(state="disabled")
             folder_browse_button.config(state="disabled")
 
-    # ฟังก์ชันเมื่อกดปุ่ม "เริ่มทำงาน"
+    # --- Load Columns ---
+    def load_columns():
+        path = excel_entry.get()
+        if not path:
+            Messagebox.show_error(title="Error", message="กรุณาเลือกไฟล์ Excel ก่อน")
+            return
+        try:
+            df = pd.read_excel(path) if path.lower().endswith(('.xlsx', '.xls')) else pd.read_csv(path)
+            columns = df.columns.tolist()
+            column_combobox['values'] = columns
+            if 'id' in columns:
+                column_var.set('id')
+            else:
+                column_var.set(columns[0])
+            Messagebox.show_info(title="Success", message="โหลดคอลัมน์สำเร็จ")
+        except Exception as e:
+            Messagebox.show_error(title="Error", message=f"ไม่สามารถอ่านไฟล์ Excel: {e}")
+
+    # --- Submit ---
     def submit():
-        nonlocal selected_mode, email, password, excel_path, folder_path
+        nonlocal selected_mode, email, password, excel_path, folder_path, selected_column
         
         selected_mode = mode_var.get()
         email = email_entry.get()
         password = password_entry.get()
         excel_path = excel_entry.get()
         folder_path = folder_entry.get() if selected_mode == "upload" else ""
+        selected_column = column_var.get()
 
         # ตรวจสอบข้อมูล
-        if not all([email, password, excel_path]):
-            # ใช้ Messagebox ของ ttkbootstrap
-            Messagebox.show_error(title="ข้อมูลไม่ครบ", message="กรุณากรอก Email, Password, และเลือกไฟล์ Excel")
+        if not all([email, password, excel_path, selected_column]):
+            Messagebox.show_error(title="ข้อมูลไม่ครบ", message="กรุณากรอก Email, Password, เลือกไฟล์ Excel และคอลัมน์")
             return
         if selected_mode == "upload" and not folder_path:
-            # ใช้ Messagebox ของ ttkbootstrap
             Messagebox.show_error(title="ข้อมูลไม่ครบ", message="กรุณาเลือกโฟลเดอร์สำหรับโหมด Upload")
             return
-            
+        
         root.destroy()
 
-    # ตั้งค่าตัวแปรสำหรับ UI
-    selected_mode = email = password = excel_path = folder_path = ""
+    # --- ตัวแปร UI ---
+    selected_mode = email = password = excel_path = folder_path = selected_column = ""
 
     root = tb.Window(themename="litera") 
     root.title("Cloud Storage Automation")
@@ -78,27 +93,22 @@ def get_inputs_with_mode_selection():
     mode_frame = tb.Frame(root, padding=(10, 10))
     mode_frame.pack(fill="x")
     
-    mode_var = tk.StringVar(value="upload") # ใช้ tk.StringVar เหมือนเดิม
+    mode_var = tk.StringVar(value="upload")
     
     tb.Label(mode_frame, text="เลือกโหมดการทำงาน:").pack(side="left", padx=(0, 10))
     
-    # ใช้ Radiobutton สไตล์ 'toolbutton' เพื่อให้ดูทันสมัย
-    rb_upload = tb.Radiobutton(mode_frame, text="⬆️ Upload", variable=mode_var, value="upload", command=toggle_folder_input, bootstyle="primary-toolbutton")
-    rb_upload.pack(side="left", fill="x", expand=True, padx=2)
-    
-    rb_delete = tb.Radiobutton(mode_frame, text="🗑️ Delete", variable=mode_var, value="delete", command=toggle_folder_input, bootstyle="primary-toolbutton")
-    rb_delete.pack(side="left", fill="x", expand=True, padx=2)
+    tb.Radiobutton(mode_frame, text="⬆️ Upload", variable=mode_var, value="upload", command=toggle_folder_input, bootstyle="primary-toolbutton").pack(side="left", fill="x", expand=True, padx=2)
+    tb.Radiobutton(mode_frame, text="🗑️ Delete", variable=mode_var, value="delete", command=toggle_folder_input, bootstyle="primary-toolbutton").pack(side="left", fill="x", expand=True, padx=2)
 
-    # --- Frame สำหรับกรอกข้อมูล (ใช้ .grid() เหมือนเดิม แต่ปรับปรุงเล็กน้อย) ---
+    # --- Frame สำหรับกรอกข้อมูล ---
     main_frame = tb.Frame(root, padding=(10, 5))
     main_frame.pack(fill="x", expand=True)
-    # ตั้งค่าให้คอลัมน์ที่ 1 (ช่องกรอกข้อมูล) ขยายตามขนาดหน้าต่าง
     main_frame.columnconfigure(1, weight=1) 
 
     # Email
     tb.Label(main_frame, text="Email:").grid(row=0, column=0, sticky="e", padx=5, pady=8)
     email_entry = tb.Entry(main_frame)
-    email_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=8) # sticky='ew' ให้ขยายเต็มความกว้างคอลัมน์
+    email_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=8)
 
     # Password
     tb.Label(main_frame, text="Password:").grid(row=1, column=0, sticky="e", padx=5, pady=8)
@@ -118,27 +128,30 @@ def get_inputs_with_mode_selection():
     folder_browse_button = tb.Button(main_frame, text="Browse...", command=browse_folder, bootstyle="outline-secondary")
     folder_browse_button.grid(row=3, column=2, padx=5, pady=8)
 
+    # Combobox เลือกคอลัมน์
+    tb.Label(main_frame, text="เลือกคอลัมน์ ID:").grid(row=4, column=0, sticky="e", padx=5, pady=8)
+    column_var = tk.StringVar()
+    column_combobox = ttk.Combobox(main_frame, textvariable=column_var, state="readonly")
+    column_combobox.grid(row=4, column=1, sticky="ew", padx=5, pady=8)
+    tb.Button(main_frame, text="Load Columns", command=load_columns, bootstyle="outline-primary").grid(row=4, column=2, padx=5, pady=8)
+
     # ปุ่ม Submit
-    # ใช้ bootstyle="success" สำหรับปุ่มสีเขียว และ pack(fill='x') ให้เต็มความกว้าง
     submit_button = tb.Button(root, text="🚀 เริ่มทำงาน", command=submit, bootstyle="success", padding=(10, 10))
     submit_button.pack(pady=15, padx=10, fill="x")
     
-    toggle_folder_input() # เรียกครั้งแรกเพื่อตั้งค่าสถานะของช่อง Folder
+    toggle_folder_input()
     root.mainloop()
     
-    return selected_mode, email, password, excel_path, folder_path
+    return selected_mode, email, password, excel_path, folder_path, selected_column
 
-# --- 2. ส่วนฟังก์ชันการทำงานหลัก (เหมือนเดิมทุกประการ) ---
-
+# --- 2. ฟังก์ชัน Selenium ---
 def setup_driver():
-    """ตั้งค่าและคืนค่า Selenium WebDriver"""
     chrome_options = Options()
     chrome_options.add_argument("--start-maximized")
     driver = webdriver.Chrome(options=chrome_options)
     return driver
 
 def google_login(driver, wait, email, password):
-    """ฟังก์ชันสำหรับล็อกอิน Google"""
     try:
         driver.get("https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Fwww.google.com%2F%3Fhl%3Dth&ec=futura_exp_og_so_72776762_e&hl=th&ifkv=AdBytiPWkA-lXJsnK3T4TFbRSkqmZxItIQFbyepCsUhuk_btQR3u5Qa1JFOnV4NX_lT1FiQ7KM9JyQ&passive=true&flowName=GlifWebSignIn&flowEntry=ServiceLogin&dsh=S539092489%3A1755489428343508")
         email_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='email']")))
@@ -157,7 +170,6 @@ def google_login(driver, wait, email, password):
         return False
 
 def write_log(id_value, messages):
-    """ฟังก์ชันสำหรับบันทึก Log"""
     log_desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
     log_file_path = os.path.join(log_desktop_path, 'Cloud Storage Automation.txt')
     with open(log_file_path, 'a', encoding='utf-8') as log_file:
@@ -167,8 +179,8 @@ def write_log(id_value, messages):
             log_file.write(msg.strip() + "\n")
         log_file.write("-" * 70 + "\n\n")
 
-# --- โหมด UPLOAD (เหมือนเดิมทุกประการ) ---
-def run_upload_mode(email, password, excel_path, base_folder):
+# --- Upload Mode ---
+def run_upload_mode(email, password, excel_path, base_folder, selected_column):
     print("\n--- ⬆️ เริ่มโหมด UPLOAD ---")
     driver = setup_driver()
     wait = WebDriverWait(driver, 20)
@@ -178,7 +190,7 @@ def run_upload_mode(email, password, excel_path, base_folder):
         return
 
     df = pd.read_excel(excel_path) if excel_path.lower().endswith(('.xlsx', '.xls')) else pd.read_csv(excel_path)
-    ids = df['id'].dropna().astype(int).astype(str).tolist()
+    ids = df[selected_column].dropna().astype(str).tolist()
     
     base_url = "https://console.cloud.google.com/storage/browser/chanintr-2d3d/production/{};tab=objects"
 
@@ -256,8 +268,8 @@ def run_upload_mode(email, password, excel_path, base_folder):
     print("\n🎉 โหมด Upload ทำงานเสร็จสิ้น")
     driver.quit()
 
-# --- โหมด DELETE (เหมือนเดิมทุกประการ) ---
-def run_delete_mode(email, password, excel_path):
+# --- Delete Mode ---
+def run_delete_mode(email, password, excel_path, selected_column):
     print("\n--- 🗑️ เริ่มโหมด DELETE ---")
     driver = setup_driver()
     wait = WebDriverWait(driver, 20)
@@ -267,16 +279,16 @@ def run_delete_mode(email, password, excel_path):
         return
 
     df = pd.read_excel(excel_path) if excel_path.lower().endswith(('.xlsx', '.xls')) else pd.read_csv(excel_path)
-    ids = df['id'].dropna().astype(int).astype(str).tolist()
+    ids = df[selected_column].dropna().astype(str).tolist()
     
     base_url = "https://console.cloud.google.com/storage/browser/chanintr-2d3d/production/{};tab=objects"
 
     for id_value in ids:
-        log_messages = [] # << บรรทัดที่ 1: เตรียมลิสต์สำหรับเก็บ Log ของ ID นี้
+        log_messages = []
         url = base_url.format(id_value)
         msg = f"\n🌐 กำลังตรวจสอบ URL: {url}"
         print(msg)
-        log_messages.append(msg) # << บรรทัดที่ 2: เพิ่มข้อความแรกลงใน Log
+        log_messages.append(msg)
         driver.get(url)
         time.sleep(5)
 
@@ -290,21 +302,15 @@ def run_delete_mode(email, password, excel_path):
             try:
                 msg = f"🗑️ พบไฟล์ใน Bucket {id_value} กำลังดำเนินการลบ..."
                 print(msg)
-                log_messages.append(msg) # << บรรทัดที่ 3: เพิ่มข้อความลงใน Log
+                log_messages.append(msg)
 
-                select_all_checkbox = wait.until(EC.element_to_be_clickable(
-                    (By.XPATH, "//mat-pseudo-checkbox")
-                ))
+                select_all_checkbox = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-pseudo-checkbox")))
                 select_all_checkbox.click()
 
-                delete_button = wait.until(EC.element_to_be_clickable(
-                    (By.XPATH, "//button[contains(., 'Delete')]")
-                ))
+                delete_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Delete')]")))
                 delete_button.click()
                 time.sleep(1)
-                confirm_input = wait.until(EC.element_to_be_clickable(
-                    (By.XPATH, "//input[@type='text']")
-                ))
+                confirm_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='text']")))
                 confirm_input.send_keys("DELETE")
                 time.sleep(1)
 
@@ -313,34 +319,32 @@ def run_delete_mode(email, password, excel_path):
                 print("🗑️ Confirm delete button")
 
                 time.sleep(4)
-                
-                # รอข้อความ success
                 success_xpath = "//mat-snack-bar-container//div[contains(text(),'deleted')]"
                 wait.until(EC.visibility_of_element_located((By.XPATH, success_xpath)))
                 msg = f"✅ ลบไฟล์ทั้งหมดใน Bucket {id_value} สำเร็จ"
                 print(msg)
-                log_messages.append(msg) # << บรรทัดที่ 4: เพิ่มข้อความลงใน Log
+                log_messages.append(msg)
 
             except Exception as e:
                 msg = f"❌ เกิดข้อผิดพลาดระหว่างลบไฟล์ใน Bucket {id_value}: {e}"
                 print(msg)
-                log_messages.append(msg) # << บรรทัดที่ 5: เพิ่มข้อความ Error ลงใน Log
+                log_messages.append(msg)
         else:
             msg = f"⏩ Bucket {id_value} ว่างอยู่แล้ว ไม่ต้องดำเนินการ"
             print(msg)
-            log_messages.append(msg) # << บรรทัดที่ 6: เพิ่มข้อความลงใน Log
+            log_messages.append(msg)
         
-        write_log(id_value, log_messages) # << บรรทัดที่ 7: บันทึก Log ทั้งหมดของ ID นี้ลงไฟล์
+        write_log(id_value, log_messages)
 
     print("\n🎉 โหมด Delete ทำงานเสร็จสิ้น")
     driver.quit()
 
-# --- 3. ส่วนเริ่มต้นโปรแกรม (เหมือนเดิมทุกประการ) ---
+# --- 3. เริ่มต้นโปรแกรม ---
 if __name__ == "__main__":
-    mode, email, password, excel_path, folder_path = get_inputs_with_mode_selection()
+    mode, email, password, excel_path, folder_path, selected_column = get_inputs_with_mode_selection()
 
-    if mode: # ตรวจสอบว่าผู้ใช้กด "เริ่มทำงาน" ไม่ใช่ปิดหน้าต่างไปเฉยๆ
+    if mode:
         if mode == 'upload':
-            run_upload_mode(email, password, excel_path, folder_path)
+            run_upload_mode(email, password, excel_path, folder_path, selected_column)
         elif mode == 'delete':
-            run_delete_mode(email, password, excel_path)
+            run_delete_mode(email, password, excel_path, selected_column)

@@ -9,13 +9,21 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
+from selenium.common.exceptions import (
+    TimeoutException,
+    ElementClickInterceptedException,
+    NoSuchElementException,
+)
 from difflib import SequenceMatcher
 
 # ---------------- CONFIG ----------------
-output_path = r"C:\Users\tanapat\Downloads\base_feature_images_all_pages_Match_Finish.xlsx"
-GOOGLE_EMAIL = "tanapat@chanintr.com"
-GOOGLE_PASSWORD = "Qwerty12345$$"
+output_path = (
+    r"C:\Users\tanapat\Downloads\base_feature_images_all_pages_Match_Finish.xlsx"
+)
+print("GOOGLE_EMAIL")
+GOOGLE_EMAIL = input()
+print("GOOGLE_PASSWORD")
+GOOGLE_PASSWORD = input()
 wait_time = 10
 folder_path = r"D:\HIC Feture\Finish"
 
@@ -28,18 +36,24 @@ driver = webdriver.Chrome(options=chrome_options)
 wait = WebDriverWait(driver, 20)
 
 # ---------------- Logging ----------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # ---------------- STEP 1: Google Login ----------------
 try:
     driver.get("https://accounts.google.com/signin/v2/identifier")
 
-    email_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='email']")))
+    email_input = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//input[@type='email']"))
+    )
     email_input.clear()
     email_input.send_keys(GOOGLE_EMAIL)
     driver.find_element(By.ID, "identifierNext").click()
 
-    password_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='password']")))
+    password_input = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//input[@type='password']"))
+    )
     password_input.clear()
     password_input.send_keys(GOOGLE_PASSWORD)
     driver.find_element(By.ID, "passwordNext").click()
@@ -54,7 +68,11 @@ except TimeoutException:
 # ---------------- STEP 2: Base Login ----------------
 try:
     driver.get("https://base.chanintr.com/login")
-    google_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Sign in with Google')]")))
+    google_btn = wait.until(
+        EC.element_to_be_clickable(
+            (By.XPATH, "//button[contains(., 'Sign in with Google')]")
+        )
+    )
     google_btn.click()
     logging.info("✅ กดปุ่ม Sign in with Google สำเร็จ")
     time.sleep(10)
@@ -68,11 +86,13 @@ target_url = "https://base.chanintr.com/brand/16/features?featureTypeId=1&isUnas
 driver.get(target_url)
 logging.info("🌐 เปิดหน้า features แล้ว รอโหลดเนื้อหา...")
 
+
 # ---------------- ฟังก์ชันช่วย ----------------
 def clean_string(s):
     s = s.lower().strip()
-    s = re.sub(r'[\s\-\_\.\,\/]', '', s)
+    s = re.sub(r"[\s\-\_\.\,\/]", "", s)
     return s
+
 
 def find_best_match(text, folder_path):
     text_clean = clean_string(text)
@@ -86,13 +106,18 @@ def find_best_match(text, folder_path):
             best_match = filename
     return best_match, max_ratio
 
+
 # ---------------- ดึงข้อมูลจากหน้า ----------------
 def extract_page_data():
     data_page = []
     seen_names = set()  # เก็บชื่อ h3 ที่เจอแล้ว
 
     try:
-        wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul > li > div.cell-thumbnail img")))
+        wait.until(
+            EC.presence_of_all_elements_located(
+                (By.CSS_SELECTOR, "ul > li > div.cell-thumbnail img")
+            )
+        )
         time.sleep(1.5)
         items = driver.find_elements(By.CSS_SELECTOR, "ul > li")
 
@@ -127,18 +152,22 @@ def extract_page_data():
                 print(f"รูป: {img_url}")
                 print(f"Code: {code_text}")
                 if matched_file:
-                    print(f"📂 ไฟล์ที่ตรงกันมากที่สุด: {matched_file} (ความใกล้เคียง {match_ratio:.2f})")
+                    print(
+                        f"📂 ไฟล์ที่ตรงกันมากที่สุด: {matched_file} (ความใกล้เคียง {match_ratio:.2f})"
+                    )
                 else:
                     print("⚠️ ไม่พบไฟล์ที่ตรงกัน")
                 print("-" * 80)
 
-                data_page.append({
-                    "name": name_text,
-                    "code": code_text,
-                    "image_url": img_url,
-                    "matched_file": matched_file,
-                    "match_ratio": match_ratio
-                })
+                data_page.append(
+                    {
+                        "name": name_text,
+                        "code": code_text,
+                        "image_url": img_url,
+                        "matched_file": matched_file,
+                        "match_ratio": match_ratio,
+                    }
+                )
             except Exception:
                 continue
 
@@ -146,6 +175,7 @@ def extract_page_data():
     except TimeoutException:
         logging.warning("⚠️ ไม่มีรายการในหน้านี้")
     return data_page
+
 
 # ---------------- เริ่มลูปดึงข้อมูลทุกหน้า ----------------
 all_data = []

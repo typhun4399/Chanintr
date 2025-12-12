@@ -14,13 +14,17 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from PIL import Image, ImageOps
 
 # ---------------- CONFIG ----------------
-output_path = r"C:\Users\tanapat\Downloads\base_feature_images_all_pages_BAK_Leather.xlsx"
+output_path = (
+    r"C:\Users\tanapat\Downloads\base_feature_images_all_pages_BAK_Leather.xlsx"
+)
 base_folder = r"D:\HIC Feture\test"
 origin_folder = os.path.join(base_folder, "origin")
 crop_folder = os.path.join(base_folder, "crop")
 
-GOOGLE_EMAIL = "tanapat@chanintr.com"
-GOOGLE_PASSWORD = "Qwerty12345$$"
+print("GOOGLE_EMAIL")
+GOOGLE_EMAIL = input()
+print("GOOGLE_PASSWORD")
+GOOGLE_PASSWORD = input()
 
 crop_top_bottom = 75
 crop_left_right = 75
@@ -36,18 +40,24 @@ driver = webdriver.Chrome(options=chrome_options)
 wait = WebDriverWait(driver, 20)
 
 # ---------------- Logging ----------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # ---------------- STEP 1: Google Login ----------------
 try:
     driver.get("https://accounts.google.com/signin/v2/identifier")
 
-    email_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='email']")))
+    email_input = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//input[@type='email']"))
+    )
     email_input.clear()
     email_input.send_keys(GOOGLE_EMAIL)
     driver.find_element(By.ID, "identifierNext").click()
 
-    password_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='password']")))
+    password_input = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//input[@type='password']"))
+    )
     password_input.clear()
     password_input.send_keys(GOOGLE_PASSWORD)
     driver.find_element(By.ID, "passwordNext").click()
@@ -62,7 +72,11 @@ except TimeoutException:
 # ---------------- STEP 2: Base Login ----------------
 try:
     driver.get("https://base.chanintr.com/login")
-    google_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Sign in with Google')]")))
+    google_btn = wait.until(
+        EC.element_to_be_clickable(
+            (By.XPATH, "//button[contains(., 'Sign in with Google')]")
+        )
+    )
     google_btn.click()
     logging.info("✅ กดปุ่ม Sign in with Google สำเร็จ")
     time.sleep(10)
@@ -76,12 +90,17 @@ target_url = "https://base.chanintr.com/brand/10/features?featureTypeId=6&isUnas
 driver.get(target_url)
 logging.info("🌐 เปิดหน้า features แล้ว รอโหลดเนื้อหา...")
 
+
 # ---------------- STEP 4: ดึงข้อมูลแต่ละหน้า ----------------
 def extract_page_data():
     data_page = []
     seen_names = set()
     try:
-        wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul > li > div.cell-thumbnail img")))
+        wait.until(
+            EC.presence_of_all_elements_located(
+                (By.CSS_SELECTOR, "ul > li > div.cell-thumbnail img")
+            )
+        )
         time.sleep(1.5)
         items = driver.find_elements(By.CSS_SELECTOR, "ul > li")
 
@@ -113,6 +132,7 @@ def extract_page_data():
     except TimeoutException:
         logging.warning("⚠️ ไม่มีรายการในหน้านี้")
     return data_page
+
 
 # ---------------- STEP 5: วนทุกหน้า ----------------
 all_data = []
@@ -153,14 +173,18 @@ logging.info(f"💾 บันทึกผลลัพธ์ทั้งหมด
 # ---------------- STEP 7: โหลดภาพ origin ----------------
 df = pd.read_excel(output_path)
 
-if 'image_url' not in df.columns or 'name' not in df.columns:
+if "image_url" not in df.columns or "name" not in df.columns:
     print("❌ Columns 'image_url' or 'name' not found.")
 else:
-    for idx, row in df.dropna(subset=['image_url', 'name']).iterrows():
+    for idx, row in df.dropna(subset=["image_url", "name"]).iterrows():
         try:
-            url = row['image_url']
-            base_name = str(row['code']).strip() if 'code' in row and pd.notna(row['code']) else str(row['name']).strip()
-            base_name = base_name.replace('/', '_').replace('\\', '_')
+            url = row["image_url"]
+            base_name = (
+                str(row["code"]).strip()
+                if "code" in row and pd.notna(row["code"])
+                else str(row["name"]).strip()
+            )
+            base_name = base_name.replace("/", "_").replace("\\", "_")
             filename = f"{base_name}.jpg"
             origin_path = os.path.join(origin_folder, filename)
             crop_path = os.path.join(crop_folder, filename)
@@ -175,7 +199,7 @@ else:
 
             # ก็อปปี้ไป crop
             with Image.open(origin_path) as img:
-                img.save(crop_path, format='JPEG')
+                img.save(crop_path, format="JPEG")
 
         except Exception as e:
             print(f"❌ Failed to download {url}: {e}")
@@ -190,13 +214,15 @@ for file in os.listdir(crop_folder):
             with Image.open(filepath) as img:
                 width, height = img.size
                 if height > crop_top_bottom * 2 and width > crop_left_right * 2:
-                    img_cropped = img.crop((
-                        crop_left_right,
-                        crop_top_bottom,
-                        width - crop_left_right,
-                        height - crop_top_bottom
-                    ))
-                    img_cropped.save(filepath, format='JPEG')
+                    img_cropped = img.crop(
+                        (
+                            crop_left_right,
+                            crop_top_bottom,
+                            width - crop_left_right,
+                            height - crop_top_bottom,
+                        )
+                    )
+                    img_cropped.save(filepath, format="JPEG")
         except Exception as e:
             print(f"❌ Failed to crop {file}: {e}")
 

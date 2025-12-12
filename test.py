@@ -7,13 +7,18 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import (
+    TimeoutException,
+    NoSuchElementException,
+    ElementClickInterceptedException,
+)
 
 # ---------------- CONFIG ----------------
-GOOGLE_EMAIL = "tanapat@chanintr.com"
-GOOGLE_PASSWORD = "Qwerty12345$$"
-OUTPUT_FILE = r"C:\Users\tanapat\Desktop\vendor_code.xlsx"
-link_prod = "https://base.chanintr.com/brand/8/products?currentPage=1&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
+print("GOOGLE_EMAIL")
+GOOGLE_EMAIL = input()
+print("GOOGLE_PASSWORD")
+GOOGLE_PASSWORD = input()
+INPUT_FILE = r"C:\Users\tanapat\Desktop\base_products.xlsx"
 
 # ---------------- Chrome Options ----------------
 chrome_options = Options()
@@ -26,156 +31,121 @@ chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
 driver = webdriver.Chrome(options=chrome_options)
 wait = WebDriverWait(driver, 20)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 try:
     # ---------- STEP 1: Google Login ----------
     driver.get("https://accounts.google.com/signin/v2/identifier")
-    email_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='email' or @id='identifierId']")))
+    email_input = wait.until(
+        EC.element_to_be_clickable(
+            (By.XPATH, "//input[@type='email' or @id='identifierId']")
+        )
+    )
     email_input.send_keys(GOOGLE_EMAIL)
     driver.find_element(By.ID, "identifierNext").click()
 
-    password_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='password']")))
+    password_input = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//input[@type='password']"))
+    )
     time.sleep(0.5)
     password_input.send_keys(GOOGLE_PASSWORD)
     driver.find_element(By.ID, "passwordNext").click()
     time.sleep(3)
 
-    # ---------- STEP 2: Base Login ----------
+    # ---------- STEP 2: BASE Login ----------
     driver.get("https://base.chanintr.com/login")
-    google_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Sign in with Google')]")))
+    google_btn = wait.until(
+        EC.element_to_be_clickable(
+            (By.XPATH, "//button[contains(., 'Sign in with Google')]")
+        )
+    )
     google_btn.click()
     time.sleep(5)
 
-    # ---------- STEP 3: เปิด target page ----------
-    driver.get(link_prod)
-    time.sleep(3)
+    # ---------- STEP 3: อ่าน Excel ----------
+    df = pd.read_excel(INPUT_FILE)
+    required_cols = ["url", "name"]
 
-    # ---------- STEP 4: ฟังก์ชันดึงสินค้าจากหน้า ----------
-    def extract_page_data(max_retries=5):
-        page_data = []
+    for col in required_cols:
+        if col not in df.columns:
+            logging.error(f"❌ ไม่มี column '{col}' ใน Excel")
+            driver.quit()
+            raise SystemExit(1)
+
+    # ---------- STEP 4: Loop URL ----------
+    for index, row in df.iterrows():
+        url = row["url"]
+        new_name = str(row["name"]).strip()
+
+        logging.info(f"🔗 เปิด URL: {url}")
+        logging.info(f"📝 ชื่อใหม่: {new_name}")
+
+        driver.get(url)
+        time.sleep(2)
+
+        max_retries = 5
+
         for attempt in range(max_retries):
             try:
-                items = WebDriverWait(driver, 10).until(
-                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, "section.wrapper-container ul li a"))
-                )
+                # ---------- STEP 4C: คลิกปุ่ม info-header-buttons ----------
+                try:
+                    btn = driver.find_element(
+                        By.CSS_SELECTOR,
+                        "body > div > div > section > section > section.info-header-section.brand-info-header > div > div.info-header-buttons > button",
+                    )
+                    btn.click()
+                    logging.info("✅ กดปุ่ม info-header-buttons สำเร็จ")
+                    time.sleep(1)
+                except Exception as e:
+                    logging.warning(f"⚠️ กดปุ่ม info-header-buttons ไม่ได้: {e}")
+                    continue
 
-                page_data.clear()
-                for a in items:
-
-                    # --- ชื่อสินค้า ---
-                    try:
-                        name = a.find_element(By.CSS_SELECTOR, "section div.product-title-container h3").text.strip()
-                    except:
-                        name = ""
-
-                    # --- Product Number ---
-                    try:
-                        product_number = a.find_element(
-                            By.CSS_SELECTOR,
-                            "section div.product-number-container"
-                        ).text.strip()
-                    except:
-                        product_number = ""
-
-                    # --- Product Type ---
-                    try:
-                        product_type = a.find_element(
-                            By.CSS_SELECTOR,
-                            "section div.product-title-container div p"
-                        ).text.strip()
-                    except:
-                        product_type = ""
-
-                    # --- ลิงก์สินค้า ---
-                    href = a.get_attribute("href")
-
-                    # --- Extra Info (Status) ---
-                    try:
-                        extra_info = a.find_element(
-                            By.CSS_SELECTOR,
-                            "section div.cell-md > div > div"
-                        ).text.strip()
-                    except:
-                        extra_info = ""
-
-                    if name:
-                        page_data.append({
-                            "name": name,
-                            "product_number": product_number,
-                            "product_type": product_type,
-                            "url": href,
-                            "status": extra_info
-                        })
-
-                        logging.info(
-                            f"🔹 {name} | PN: {product_number} | Type: {product_type} | {href} | Status: {extra_info}"
+                # ---------- STEP 4D: เคลียร์ชื่อ และใส่ชื่อใหม่ ----------
+                try:
+                    name_input = wait.until(
+                        EC.element_to_be_clickable(
+                            (
+                                By.XPATH,
+                                "/html/body/div/div/section/section/div[1]/div/div[2]/div/div[2]/div[1]/div[2]/div/input",
+                            )
                         )
+                    )
 
-                if len(page_data) > 0:
-                    return page_data
-                else:
-                    logging.warning(f"⚠️ ยังไม่มีสินค้า ลองรอบที่ {attempt+1}")
-                    time.sleep(2)
+                    name_input.clear()
+                    time.sleep(0.3)
+                    name_input.send_keys(new_name)
 
-            except TimeoutException:
-                logging.warning(f"⏳ Timeout รอบที่ {attempt+1}")
-                time.sleep(2)
+                    logging.info("✏️ เปลี่ยนชื่อสินค้าเรียบร้อย")
+                except Exception as e:
+                    logging.warning(f"⚠️ ใส่ชื่อใหม่ไม่สำเร็จ: {e}")
+                    continue
 
-        logging.error("❌ ไม่พบสินค้าใด ๆ")
-        return page_data
+                # ---------- STEP 4E: กด Submit ----------
+                try:
+                    submit_btn = driver.find_element(
+                        By.CSS_SELECTOR,
+                        "body > div > div > section > section > div.v--modal-overlay.scrollable.modal.modal-product-create-edit > div > div.v--modal-box.v--modal > div > div.modal-footer > button.btn",
+                    )
+                    submit_btn.click()
+                    logging.info("💾 บันทึกข้อมูลสำเร็จ (Submit)")
+                except Exception as e:
+                    logging.warning(f"⚠️ Submit modal ไม่สำเร็จ: {e}")
+                    continue
 
-    # ---------- STEP 5: วนทุกหน้า ----------
-    all_data = []
-    page = 1
+                break  # จบ retry loop ได้แล้ว
 
-    while True:
-        logging.info(f"📄 กำลังดึงข้อมูลหน้า {page} ...")
-        page_links = extract_page_data()
-
-        while len(page_links) == 0:
-            logging.info("🔄 พบสินค้า 0 รายการ กำลัง retry ...")
-            time.sleep(2)
-            page_links = extract_page_data()
-
-        all_data.extend(page_links)
-
-        # หา next page
-        try:
-            next_btn = None
-            buttons = driver.find_elements(By.CSS_SELECTOR, "ul.pagination li button")
-            for btn in buttons:
-                if btn.find_elements(By.CSS_SELECTOR, "svg[data-icon='angle-right']"):
-                    next_btn = btn
-                    break
-
-            if next_btn and next_btn.is_enabled():
-                driver.execute_script("arguments[0].scrollIntoView(true);", next_btn)
+            except Exception as e:
+                logging.warning(f"⚠️ Attempt {attempt+1}/{max_retries} error: {e}")
                 time.sleep(1)
-                next_btn.click()
-                page += 1
-                logging.info(f"➡️ ไปหน้า {page}")
-                time.sleep(2)
-            else:
-                logging.info("✅ ถึงหน้าสุดท้ายแล้ว")
-                break
 
-        except Exception:
-            logging.info("✅ ไม่มีปุ่ม next")
-            break
-
-    # ---------- STEP 6: Export Excel ----------
-    if all_data:
-        df = pd.DataFrame(all_data)
-        df.to_excel(OUTPUT_FILE, index=False)
-        logging.info(f"✅ บันทึก Excel เสร็จ: {OUTPUT_FILE}")
-    else:
-        logging.warning("⚠️ ไม่มีข้อมูลสำหรับบันทึก")
+        time.sleep(1)
 
     driver.quit()
 
 except Exception:
-    logging.exception("เกิดข้อผิดพลาด:")
+    logging.exception("เกิดข้อผิดพลาดระหว่างประมวลผล:")
     try:
         driver.quit()
     except:

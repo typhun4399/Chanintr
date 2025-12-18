@@ -2,431 +2,355 @@
 import time
 import logging
 import pandas as pd
+import getpass
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-# ---------------- CONFIG ----------------
-print("GOOGLE_EMAIL:")
-GOOGLE_EMAIL = input().strip()
+# ---------------- CONFIGURATION ----------------
+EXCEL_FILE_PATH = (
+    r"C:\Users\tanapat\Downloads\create-consignment-template-20240716(1).xlsx"
+)
+LINK_PRODUCT_CREATE = "https://base.chanintr.com/brand/420/products?currentPage=1&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
+LOGIN_URL = "https://base.chanintr.com/login"
 
-print("GOOGLE_PASSWORD:")
-GOOGLE_PASSWORD = input().strip()
-
-EXCEL_FILE = r"C:\Users\phunk\Downloads\create-consignment-template-20240716.xlsx"
-
-LINK_PRODUCT = "https://base.chanintr.com/brand/420/products?currentPage=1&searchText={Vendor Item Number จาก Excel}&directionUser=DESC&sortBy=title&direction=ASC&isSearch=true"
-
-# ---------------- LOGGING ----------------
+# ---------------- LOGGING SETUP ----------------
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - [%(levelname)s] - %(message)s",
+    datefmt="%H:%M:%S",
 )
-
-# ---------------- CHROME OPTIONS ----------------
-chrome_options = Options()
-chrome_options.add_argument("--start-maximized")
-chrome_options.add_argument("--disable-notifications")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
-chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
-
-driver = webdriver.Chrome(options=chrome_options)
-wait = WebDriverWait(driver, 20)
+logger = logging.getLogger(__name__)
 
 
-# ---------------- HELPERS ----------------
-def fill_input(xpath, value):
-    el = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
-    el.clear()
-    el.send_keys(str(value))
+class ChanintrBot:
+    def __init__(self):
+        self.driver = self._init_driver()
+        self.wait = WebDriverWait(self.driver, 20)
 
+    def _init_driver(self):
+        chrome_options = Options()
+        chrome_options.add_argument("--start-maximized")
+        chrome_options.add_argument("--disable-notifications")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
+        return webdriver.Chrome(options=chrome_options)
 
-def js_click(el):
-    driver.execute_script("arguments[0].click();", el)
+    def close(self):
+        self.driver.quit()
 
+    # ---------------- HELPERS ----------------
+    def _fill(self, xpath, value):
+        if pd.isna(value):
+            return
+        try:
+            el = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+            el.clear()
+            el.send_keys(str(value))
+        except TimeoutException:
+            logger.warning(f"Timeout trying to fill element: {xpath}")
 
-def select_dropdown_by_text(text: str):
-    """
-    เลือก <li> ใน dropdown โดยใช้ข้อความ
-    ถ้าไม่เจอ → เลือกตัวแรกแทน
-    """
-    text = text.strip()
+    def _click(self, xpath):
+        try:
+            el = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+            self.driver.execute_script("arguments[0].click();", el)
+        except TimeoutException:
+            logger.warning(f"Timeout trying to click element: {xpath}")
 
-    try:
-        js_click(
-            wait.until(
-                EC.presence_of_element_located(
-                    (
-                        By.XPATH,
-                        f"//ul/li[contains(normalize-space(.), '{text}')]",
-                    )
+    def _select_dropdown_by_text(self, text):
+        """Clicks a list item containing the specific text, defaults to first item if not found."""
+        if pd.isna(text):
+            return
+        text = str(text).strip()
+        try:
+            xpath = f"//ul/li[contains(normalize-space(.), '{text}')]"
+            self._click(xpath)
+        except Exception:
+            logger.warning(f"Dropdown value '{text}' not found, selecting first item.")
+            self._click(".dropdown-list-container ul li:first-child")
+
+    # ---------------- AUTH FLOW ----------------
+    def login_google(self, email, password):
+        logger.info("Starting Google Login...")
+        self.driver.get("https://accounts.google.com/signin/v2/identifier")
+
+        self._fill("//input[@type='email' or @id='identifierId']", email)
+        self.driver.find_element(By.ID, "identifierNext").click()
+
+        self._fill("//input[@type='password']", password)
+        self.driver.find_element(By.ID, "passwordNext").click()
+
+        # Give Google a moment to process redirect
+        time.sleep(5)
+
+    def login_base(self):
+        logger.info("Logging into Base Chanintr...")
+        self.driver.get(LOGIN_URL)
+
+        # Click "Sign in with Google"
+        try:
+            btn = self.wait.until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//button[contains(., 'Sign in with Google')]")
                 )
             )
-        )
-    except TimeoutException:
-        logging.warning(f"Dropdown value '{text}' not found → select first item")
-        js_click(
-            wait.until(
-                EC.presence_of_element_located(
-                    (
-                        By.CSS_SELECTOR,
-                        ".dropdown-list-container ul li:first-child",
-                    )
-                )
-            )
-        )
+            btn.click()
+            time.sleep(5)  # Wait for redirect
+            logger.info("Login successful.")
+        except TimeoutException:
+            logger.error("Could not find 'Sign in with Google' button.")
 
-
-try:
-    # ---------- STEP 0: Load Excel ----------
-    df = pd.read_excel(EXCEL_FILE)
-
-    # ---------- STEP 1: Google Login ----------
-    driver.get("https://accounts.google.com/signin/v2/identifier")
-
-    wait.until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//input[@type='email' or @id='identifierId']")
-        )
-    ).send_keys(GOOGLE_EMAIL)
-
-    driver.find_element(By.ID, "identifierNext").click()
-
-    wait.until(
-        EC.element_to_be_clickable((By.XPATH, "//input[@type='password']"))
-    ).send_keys(GOOGLE_PASSWORD)
-
-    driver.find_element(By.ID, "passwordNext").click()
-    time.sleep(3)
-
-    # ---------- STEP 2: Base Login ----------
-    driver.get("https://base.chanintr.com/login")
-
-    wait.until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//button[contains(., 'Sign in with Google')]")
-        )
-    ).click()
-
-    time.sleep(5)
-
-    for _, row in df.iterrows():
-
-        # ---------- STEP 3: Open Product Page ----------
-        driver.get(LINK_PRODUCT)
+    # ---------------- PRODUCT LOGIC ----------------
+    def create_product(self, row):
+        logger.info(f"Processing: {row['Product Title']}")
+        self.driver.get(LINK_PRODUCT_CREATE)
         time.sleep(3)
 
-        # ---------- STEP 4: Create Product ----------
-        logging.info(f"Creating product: {row['Product Title']}")
-
-        # --- Create button ---
-        js_click(
-            wait.until(
-                EC.presence_of_element_located(
-                    (
-                        By.XPATH,
-                        "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/button",
-                    )
-                )
-            )
+        # 1. Click Create Button
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/button"
         )
 
-        # --- Product Title ---
-        title_input = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[1]/div[2]/div/input",
-                )
-            )
-        )
-        title_input.clear()
-        title_input.send_keys(str(row["Product Title"]))
-
-        # ===== Category =====
-        js_click(
-            wait.until(
-                EC.presence_of_element_located(
-                    (
-                        By.XPATH,
-                        "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[4]/div[2]/div/div[1]",
-                    )
-                )
-            )
+        # 2. Basic Info
+        self._fill(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[1]/div[2]/div/input",
+            row["Product Title"],
         )
 
-        cat_input = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[4]/div[2]/div/div[2]/div/div[1]/div/input",
-                )
-            )
+        # 3. Category
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[4]/div[2]/div/div[1]"
         )
-        cat_input.send_keys(str(row["Category"]))
+        self._fill(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[4]/div[2]/div/div[2]/div/div[1]/div/input",
+            row["Category"],
+        )
+        self._select_dropdown_by_text(row["Category"])
 
-        select_dropdown_by_text(str(row["Category"]))
-
-        # ===== Not For Customer =====
+        # 4. Not For Customer
         if str(row.get("Not For Customer", "")).upper() == "TRUE":
-            js_click(
-                wait.until(
-                    EC.presence_of_element_located(
-                        (
-                            By.XPATH,
-                            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[5]/div[2]/div[2]/div",
-                        )
-                    )
-                )
+            self._click(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[5]/div[2]/div[2]/div"
             )
 
-        # ===== Order Status =====
-        js_click(
-            wait.until(
-                EC.presence_of_element_located(
-                    (
-                        By.XPATH,
-                        "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[6]/div[2]/div/div[1]",
-                    )
-                )
-            )
+        # 5. Order Status
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[6]/div[2]/div/div[1]"
         )
-
-        order_input = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[6]/div[2]/div/div[2]/div/div[1]/div/input",
-                )
-            )
+        self._fill(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[2]/div[6]/div[2]/div/div[2]/div/div[1]/div/input",
+            row["Order Status"],
         )
-        order_input.send_keys(str(row["Order Status"]))
+        self._select_dropdown_by_text(row["Order Status"])
 
-        select_dropdown_by_text(str(row["Order Status"]))
-
-        # --- Save ---
-        js_click(
-            wait.until(
-                EC.presence_of_element_located(
-                    (
-                        By.XPATH,
-                        "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[3]/button[2]",
-                    )
-                )
-            )
+        # 6. Save Basic Info
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div/div[2]/div/div[3]/button[2]"
         )
-
         time.sleep(2)
 
-        # ---------- STEP 5: Rooms & Styles ----------
-        logging.info("Updating Rooms & Styles")
-
-        # 🔹 เปิด modal
-        btn_open = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/button",
-                )
-            )
+    def update_rooms_and_styles(self, row):
+        logger.info("Updating Rooms & Styles...")
+        # Open Modal
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/button"
         )
-        js_click(btn_open)
         time.sleep(1)
 
-        # ===== Rooms =====
-
-        rooms_dropdown = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[1]/div[2]/div/div[2]/span",
-                )
-            )
+        # Rooms
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[1]/div[2]/div/div[2]/span"
         )
-        js_click(rooms_dropdown)
-
-        rooms_input = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[1]/div[2]/div/div[3]/div/div/div/input",
-                )
-            )
+        self._fill(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[1]/div[2]/div/div[3]/div/div/div/input",
+            row["Rooms"],
         )
-        rooms_input.send_keys(str(row["Rooms"]))
-
-        li_rooms = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[1]/div[2]/div/div[3]/div/ul/li[1]",
-                )
-            )
+        # Select first result
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[1]/div[2]/div/div[3]/div/ul/li[1]"
         )
-        js_click(li_rooms)
 
-        # ===== Styles =====
-
-        styles_dropdown = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[2]/div[2]/div/div[2]/span",
-                )
-            )
+        # Styles
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[2]/div[2]/div/div[2]/span"
         )
-        js_click(styles_dropdown)
-
-        styles_input = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[2]/div[2]/div/div[3]/div/div/div/input",
-                )
-            )
+        self._fill(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[2]/div[2]/div/div[3]/div/div/div/input",
+            row["Styles"],
         )
-        styles_input.send_keys(str(row["Styles"]))
-
-        li_styles = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[2]/div[2]/div/div[3]/div/ul/li[1]",
-                )
-            )
+        # Select first result
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/div[2]/div[2]/div[2]/div/div[3]/div/ul/li[1]"
         )
-        js_click(li_styles)
 
-        # 🔹 Save
-        btn_save = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/span/button[2]",
-                )
-            )
+        # Save Modal
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[1]/div[1]/div/span/button[2]"
         )
-        js_click(btn_save)
-
         time.sleep(2)
 
-        # ---------- STEP 6: Dimension Edit ----------
-        btn_edit = wait.until(
-            EC.element_to_be_clickable(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[1]/div/button[2]",
-                )
-            )
+    def update_dimensions(self, row):
+        logger.info("Updating Dimensions...")
+        # Click Edit Button
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[1]/div/button[2]"
         )
-        js_click(btn_edit)
-
         time.sleep(1)
 
-        fill_input(
-            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div[2]/div[1]/div/input",
-            row["Width"],
-        )
+        size_type = str(row.get("Size type", "")).upper()
 
-        fill_input(
-            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div[2]/div[2]/div/input",
-            row["Depth"],
-        )
-
-        fill_input(
-            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div[2]/div[3]/div/input",
-            row["Height"],
-        )
-
-        fill_input(
-            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[3]/div[2]/div/input",
-            row["Product Weight (kg)"],
-        )
-
-        fill_input(
-            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[3]/div[2]/div/div[1]/div/input",
-            row["Package Size Width"],
-        )
-
-        fill_input(
-            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[3]/div[2]/div/div[2]/div/input",
-            row["Package Size Depth"],
-        )
-
-        fill_input(
-            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[3]/div[2]/div/div[3]/div/input",
-            row["Package Size Height"],
-        )
-
-        fill_input(
-            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[5]/div[2]/div/input",
-            row["Volume (CBM)"],
-        )
-
-        save_btn = wait.until(
-            EC.element_to_be_clickable(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[1]/div/span/button[2]",
-                )
+        if size_type == "R":
+            # Click "Round" shape button
+            self._click(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div[1]/ul/li[2]"
             )
-        )
-        js_click(save_btn)
+            time.sleep(1)
 
-        logging.info("✅ Dimension saved successfully")
+            # Fill Round Dimensions
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div[2]/div[1]/div/input",
+                row["Width"],
+            )
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div[2]/div[2]/div/input",
+                row["Height"],
+            )
+            # Weight
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[3]/div[2]/div/input",
+                row["Product Weight (kg)"],
+            )
+        else:
+            # Standard/Rectangular logic (Default)
+            time.sleep(1)
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div[2]/div[1]/div/input",
+                row["Width"],
+            )
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div[2]/div[2]/div/input",
+                row["Depth"],
+            )
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[2]/div[2]/div[2]/div[3]/div/input",
+                row["Height"],
+            )
+            # Weight
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[3]/div[2]/div/input",
+                row["Product Weight (kg)"],
+            )
+
+        # Handle Package Sizing (Common logic)
+        self._handle_package_sizing(row)
+
+        # Click Save
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[1]/div/span/button[2]"
+        )
         time.sleep(2)
 
-        # ---------- STEP 7: Vendor Edit ----------
+    def _handle_package_sizing(self, row):
+        """Helper to handle the lower section of the dimension form"""
+        is_auto_package = str(row.get("Auto Package Size", "")).upper() == "TRUE"
 
-        # ---------- 1. กดปุ่มเปิด Vendor Item Number ----------
-        js_click(
-            wait.until(
-                EC.presence_of_element_located(
-                    (
-                        By.XPATH,
-                        "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[3]/div/button",
-                    )
-                )
+        if is_auto_package:
+            # Click Auto Button (Updated to find by text "Calculate Package Size")
+            self._click("//button[contains(., 'Calculate Package Size')]")
+            time.sleep(1)
+
+            # If Volume is provided manually even when auto is on
+            vol = row.get("Volume (CBM)")
+            if pd.notna(vol) and str(vol).strip() != "":
+                # Clear existing auto-calculated value using JS
+                vol_input_xpath = "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[5]/div[2]/div/input"
+                try:
+                    el = self.driver.find_element(By.XPATH, vol_input_xpath)
+                    self.driver.execute_script("arguments[0].value = '';", el)
+                    self._fill(vol_input_xpath, vol)
+                except NoSuchElementException:
+                    pass
+        else:
+            # Manual Package Size
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[3]/div[2]/div/div[1]/div/input",
+                row["Package Size Width"],
             )
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[3]/div[2]/div/div[2]/div/input",
+                row["Package Size Depth"],
+            )
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[3]/div[2]/div/div[3]/div/input",
+                row["Package Size Height"],
+            )
+            self._fill(
+                "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[5]/div[2]/div/input",
+                row["Volume (CBM)"],
+            )
+
+    def update_vendor_info(self, row):
+        logger.info("Updating Vendor Info...")
+        # Open Vendor Edit
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[3]/div/button"
         )
 
-        # ---------- 2. พิมพ์ Vendor Item Number ----------
-        vendor_input = wait.until(
-            EC.presence_of_element_located(
-                (
-                    By.XPATH,
-                    "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[3]/div/div[1]/div/div[1]/div[2]/div/input",
-                )
-            )
+        # Fill Number
+        self._fill(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[3]/div/div[1]/div/div[1]/div[2]/div/input",
+            row["Vendor Item Number"],
         )
 
-        vendor_input.clear()
-        vendor_input.send_keys(str(row["Vendor Item Number"]))
-
-        # ---------- 3. กดปุ่ม Confirm / Save ----------
-        js_click(
-            wait.until(
-                EC.presence_of_element_located(
-                    (
-                        By.XPATH,
-                        "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[3]/div/span/button[2]",
-                    )
-                )
-            )
+        # Save
+        self._click(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[3]/div/span/button[2]"
         )
-
         time.sleep(1)
 
 
-except TimeoutException:
-    logging.error("TimeoutException occurred", exc_info=True)
+# ---------------- MAIN EXECUTION ----------------
+if __name__ == "__main__":
+    print("=== Chanintr Product Automation Bot ===")
 
-except Exception as e:
-    logging.error(f"Unexpected error: {e}", exc_info=True)
+    # Securely get credentials
+    google_email = input("Google Email: ").strip()
+    google_password = getpass.getpass("Google Password: ").strip()
 
-finally:
-    logging.info("Script finished")
+    try:
+        # Load Excel
+        logger.info(f"Loading Excel from: {EXCEL_FILE_PATH}")
+        df = pd.read_excel(EXCEL_FILE_PATH)
+
+        # Initialize Bot
+        bot = ChanintrBot()
+
+        # Perform Login
+        bot.login_google(google_email, google_password)
+        bot.login_base()
+
+        # Iterate Rows
+        for index, row in df.iterrows():
+            try:
+                logger.info(f"--- Starting Row {index + 1} ---")
+                bot.create_product(row)
+                bot.update_rooms_and_styles(row)
+                bot.update_dimensions(row)
+                bot.update_vendor_info(row)
+                logger.info(f"--- Finished Row {index + 1} ---")
+            except Exception as e:
+                logger.error(f"Failed processing row {index + 1}: {e}", exc_info=True)
+                # Optional: Continue to next row even if one fails
+                continue
+
+    except Exception as e:
+        logger.critical(f"Critical Error: {e}", exc_info=True)
+    finally:
+        # Ask user before closing to see results
+        input("\nPress Enter to close browser and exit...")
+        if "bot" in locals():
+            bot.close()

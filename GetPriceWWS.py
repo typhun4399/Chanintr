@@ -116,10 +116,10 @@ for style_no in style_list:
     # --- เก็บผลลัพธ์ของ Style No. นี้ ลง all_results ---
     all_results.extend(results)
 
-# --- บันทึกลง Excel ---
-output_path = r"C:\Users\tanapat\Desktop\waterworks_results.xlsx"
-df_output = pd.DataFrame(all_results, columns=["style", "sku", "price"])
-df_output.to_excel(output_path, index=False)
-print(f"\n✅ Saved all results to {output_path}")
+    # --- บันทึกลง Excel ---
+    output_path = r"C:\Users\tanapat\Desktop\waterworks_results_left.xlsx"
+    df_output = pd.DataFrame(all_results, columns=["style", "sku", "price"])
+    df_output.to_excel(output_path, index=False)
+    print(f"\n✅ Saved all results to {output_path}")
 
 driver.quit()

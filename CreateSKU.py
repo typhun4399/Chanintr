@@ -248,16 +248,15 @@ class ChanintrBot:
             logger.warning(f"Vendor '{vendor_item}' not found in dropdown.")
 
         # 6. Fill AP Number
-        # Open AP Dropdown
-        self._click(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[4]/div/div[1]/span[1]"
-        )
-
-        ap_number = row["AP Number"]
-        self._fill(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[4]/div/div[2]/div/div[1]/div/input",
-            ap_number,
-        )
+        # AP Number
+        if not pd.isna(row.get("AP Number")):
+            self._click("/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[4]/div/div[1]/span[1]")
+            ap_number = row["AP Number"]
+            self._fill("/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[4]/div/div[2]/div/div[1]/div/input", ap_number)
+            try:
+                self._click(f"//ul/li[contains(normalize-space(.), '{ap_number}')]")
+            except:
+                pass
 
         # Select AP Result
         try:
@@ -359,3 +358,4 @@ if __name__ == "__main__":
         input("\nPress Enter to close browser and exit...")
         if "bot" in locals():
             bot.close()
+

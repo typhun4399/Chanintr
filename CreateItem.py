@@ -11,9 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # ---------------- CONFIGURATION ----------------
-EXCEL_FILE_PATH = (
-    r"C:\Users\tanapat\Downloads\create-consignment-template-20240716(1).xlsx"
-)
+EXCEL_FILE_PATH = r"C:\Users\tanapat\Downloads\Create DEE.xlsx"
 LINK_PRODUCT_CREATE = "https://base.chanintr.com/brand/420/products?currentPage=1&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
 LOGIN_URL = "https://base.chanintr.com/login"
 
@@ -224,6 +222,7 @@ class ChanintrBot:
                 "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[3]/div[2]/div/input",
                 row["Product Weight (kg)"],
             )
+
         else:
             # Standard/Rectangular logic (Default)
             time.sleep(1)
@@ -247,6 +246,11 @@ class ChanintrBot:
 
         # Handle Package Sizing (Common logic)
         self._handle_package_sizing(row)
+
+        self._fill(
+            "/html/body/div/div/section/section/section[3]/div[1]/section/div/div[2]/div[2]/div/div[2]/div[2]/div[4]/div[1]/div[4]/div[2]/div/input",
+            row["Product Package Weight"],
+        )
 
         # Click Save
         self._click(
@@ -274,6 +278,7 @@ class ChanintrBot:
                     self._fill(vol_input_xpath, vol)
                 except NoSuchElementException:
                     pass
+
         else:
             # Manual Package Size
             self._fill(

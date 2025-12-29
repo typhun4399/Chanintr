@@ -9,13 +9,14 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, ElementNotInteractableException
+from selenium.common.exceptions import (
+    TimeoutException,
+    ElementNotInteractableException,
+    NoSuchElementException,
+)
 
 # ---------------- CONFIGURATION ----------------
-EXCEL_FILE_PATH = (
-    r"C:\Users\tanapat\Downloads\create-consignment-template-20240716(1).xlsx"
-)
-# Changed output file to Excel (.xlsx)
+EXCEL_FILE_PATH = r"C:\Users\tanapat\Downloads\Create DEE.xlsx"
 SKU_OUTPUT_FILE = r"C:\Users\tanapat\Downloads\sku_result.xlsx"
 
 # Login & Base URLs
@@ -34,15 +35,14 @@ logger = logging.getLogger(__name__)
 class ChanintrBot:
     def __init__(self):
         self.driver = self._init_driver()
+        # เพิ่มเวลา Wait มาตรฐานเป็น 20 วินาที
         self.wait = WebDriverWait(self.driver, 20)
 
     def _init_driver(self):
         chrome_options = Options()
         chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--disable-notifications")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
+        # chrome_options.add_argument("--headless") # เปิดบรรทัดนี้ถ้าไม่อยากเห็นหน้าต่าง Browser
         return webdriver.Chrome(options=chrome_options)
 
     def close(self):
@@ -50,75 +50,62 @@ class ChanintrBot:
 
     # ---------------- HELPERS ----------------
     def _fill(self, xpath, value):
-        """
-        Fills an input field.
-        - Tries standard clear/send_keys.
-        - Falls back to JavaScript if element is not interactable (common in animations).
-        """
-        try:
-            # Wait for element to be clickable
-            el = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        """กรอกข้อมูลลงในช่อง Input อย่างปลอดภัย"""
+        if pd.isna(value) or str(value).strip() == "":
+            return  # ข้ามถ้าไม่มีข้อมูล
 
-            # Attempt to clear and fill normally
+        try:
+            el = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
             try:
                 el.clear()
-            except (ElementNotInteractableException, Exception):
-                # Fallback: Clear using JavaScript if standard clear fails
+            except:
                 self.driver.execute_script("arguments[0].value = '';", el)
 
-            # Only send keys if value is valid
-            if pd.notna(value) and str(value).strip() != "":
-                el.send_keys(str(value))
-
+            el.send_keys(str(value))
         except TimeoutException:
-            logger.warning(f"Timeout trying to fill element: {xpath}")
+            logger.warning(f"⚠️ หาช่องกรอกข้อมูลไม่เจอ: {xpath}")
 
-    def _click(self, xpath):
+    def _click(self, xpath, timeout=20):
+        """คลิกปุ่ม โดยรองรับทั้งการคลิกปกติและ JavaScript Click"""
         try:
-            el = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
-            self.driver.execute_script("arguments[0].click();", el)
+            wait_custom = WebDriverWait(self.driver, timeout)
+            el = wait_custom.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+            try:
+                el.click()
+            except:
+                self.driver.execute_script("arguments[0].click();", el)
         except TimeoutException:
-            logger.warning(f"Timeout trying to click element: {xpath}")
+            logger.warning(f"⚠️ คลิกปุ่มไม่ได้ (Timeout): {xpath}")
+            raise  # ส่ง Error ออกไปเพื่อให้รู้ว่ากดไม่ได้
 
     def _select_dropdown_option(self, container_xpath, value):
-        """
-        Selects an option from a dropdown list (ul/li) that contains the text value.
-        Defaults to the first option if the specific value isn't found.
-        """
+        """เลือกตัวเลือกจาก Dropdown"""
         if pd.isna(value):
             return
 
         target_text = str(value).strip().lower()
-
         try:
-            # Wait for list items to appear
+            # รอให้รายการ Dropdown โหลด
             li_elements = self.wait.until(
                 EC.presence_of_all_elements_located(
                     (By.XPATH, f"{container_xpath}/ul/li")
                 )
             )
 
-            selected = False
             for li in li_elements:
                 if target_text in li.text.strip().lower():
                     self.driver.execute_script("arguments[0].click();", li)
-                    selected = True
-                    break
+                    return  # เจอแล้วจบเลย
 
-            if not selected and li_elements:
-                logger.warning(
-                    f"Option '{value}' not found, selecting first available option."
-                )
-                self.driver.execute_script("arguments[0].click();", li_elements[0])
+            # ถ้าไม่เจอ เลือกตัวแรก
+            logger.warning(f"ไม่เจอตัวเลือก '{value}' เลือกรายการแรกแทน")
+            self.driver.execute_script("arguments[0].click();", li_elements[0])
 
         except TimeoutException:
-            logger.warning(f"Timeout waiting for dropdown options at {container_xpath}")
+            logger.warning(f"⚠️ รายการ Dropdown ไม่ขึ้น: {container_xpath}")
 
     def save_result_to_excel(self, vendor_item, sku_text):
-        """
-        Saves the Vendor Item Number and Generated SKU to an Excel file.
-        Appends to existing file or creates a new one.
-        """
+        """บันทึกผลลัพธ์ลง Excel"""
         try:
             new_data = {
                 "Vendor Item Number": [vendor_item],
@@ -128,67 +115,66 @@ class ChanintrBot:
             df_new = pd.DataFrame(new_data)
 
             if os.path.exists(SKU_OUTPUT_FILE):
-                # Read existing file, append new data, and save back
                 df_existing = pd.read_excel(SKU_OUTPUT_FILE)
                 df_combined = pd.concat([df_existing, df_new], ignore_index=True)
                 df_combined.to_excel(SKU_OUTPUT_FILE, index=False)
             else:
-                # Create new file
                 df_new.to_excel(SKU_OUTPUT_FILE, index=False)
 
-            logger.info(f"💾 Saved SKU to Excel: {sku_text}")
-
+            logger.info(f"💾 Saved SKU: {sku_text}")
         except Exception as e:
-            logger.error(f"Failed to write SKU to Excel: {e}")
+            logger.error(f"❌ Failed to save Excel: {e}")
 
-    # ---------------- AUTH FLOW ----------------
-    def login_google(self, email, password):
-        logger.info("Starting Google Login...")
+    # ---------------- MAIN LOGIC ----------------
+    def login_manual_fallback(self, email, password):
+        """Login Google แบบมีระบบรอคนกดเองถ้าบอทกดไม่ได้"""
+        logger.info("กำลังเข้าสู่หน้า Login...")
         self.driver.get("https://accounts.google.com/signin/v2/identifier")
 
-        self._fill("//input[@type='email' or @id='identifierId']", email)
-        self.driver.find_element(By.ID, "identifierNext").click()
-
-        # Wait for animation/transition from email to password (Increased to 5s)
-        time.sleep(5)
-
-        self._fill("//input[@type='password']", password)
-        self.driver.find_element(By.ID, "passwordNext").click()
-
-        time.sleep(5)
+        try:
+            self._fill("//input[@type='email' or @id='identifierId']", email)
+            self.driver.find_element(By.ID, "identifierNext").click()
+            time.sleep(3)  # รอ Animation เปลี่ยนหน้า
+            self._fill("//input[@type='password']", password)
+            self.driver.find_element(By.ID, "passwordNext").click()
+            time.sleep(5)
+        except Exception:
+            logger.warning("⚠ บอทกรอกรหัสไม่ได้ (อาจติด Captcha) กรุณากรอกเองใน Browser")
 
     def login_base(self):
-        logger.info("Logging into Base Chanintr...")
+        logger.info("เข้าสู่หน้า Base Chanintr...")
         self.driver.get(LOGIN_URL)
-
         try:
+            # รอให้ปุ่ม Sign in Google ขึ้นแล้วกด
             btn = self.wait.until(
                 EC.element_to_be_clickable(
                     (By.XPATH, "//button[contains(., 'Sign in with Google')]")
                 )
             )
             btn.click()
-            time.sleep(5)
-            logger.info("Login successful.")
-        except TimeoutException:
-            logger.error("Could not find 'Sign in with Google' button.")
 
-    # ---------------- SKU LOGIC ----------------
+            # **สำคัญ** ให้เวลา User ในการยืนยันตัวตนหรือรอหน้าเว็บโหลดเสร็จ
+            logger.info("⏳ รอการ Login... (ถ้าต้องยืนยันตัวตน 2FA ให้ทำใน Browser ได้เลย)")
+            time.sleep(10)
+            logger.info("Login สำเร็จ (สมมติ)")
+        except TimeoutException:
+            logger.error("หาปุ่ม Sign in with Google ไม่เจอ")
+
     def process_sku_creation(self, row):
         vendor_item = str(row["Vendor Item Number"]).strip()
-        logger.info(f"Processing Vendor Item: {vendor_item}")
+        logger.info(f"🔹 กำลังทำรายการ: {vendor_item}")
 
-        # 1. Search for Product
+        # 1. ค้นหา Product
         search_url = (
             f"{BASE_PRODUCT_URL}"
             f"?currentPage=1&searchText={vendor_item}"
             "&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
         )
         self.driver.get(search_url)
-        time.sleep(2)
 
-        # 2. Find Correct Product (Exact Match Loop)
+        # 2. เลือก Product ที่ตรงกัน (Exact Match)
         try:
+            # รอให้ List สินค้าขึ้น
             product_items = self.wait.until(
                 EC.presence_of_all_elements_located(
                     (
@@ -199,112 +185,147 @@ class ChanintrBot:
             )
 
             product_clicked = False
-            for idx, li in enumerate(product_items, start=1):
+            for li in product_items:
                 try:
-                    # Check the vendor text inside the list item
-                    vendor_text = li.find_element(
+                    # ดึง text ของ Vendor Item Number ในการ์ดสินค้า
+                    item_text = li.find_element(
                         By.XPATH, "./a/section/div[3]"
                     ).text.strip()
-
-                    if vendor_text == vendor_item:
-                        logger.info(f"✅ Matched Vendor Item at index {idx}")
+                    if item_text == vendor_item:
                         self.driver.execute_script(
                             "arguments[0].click();", li.find_element(By.XPATH, "./a")
                         )
                         product_clicked = True
                         break
-                except Exception:
+                except:
                     continue
 
             if not product_clicked:
-                logger.warning(f"❌ No matching product found for: {vendor_item}")
+                logger.warning(f"❌ ไม่พบสินค้าที่ตรงกับ: {vendor_item}")
                 return
 
         except TimeoutException:
-            logger.warning(f"❌ No product list items found for: {vendor_item}")
+            logger.warning(f"❌ ไม่พบรายการสินค้าใดๆ สำหรับ: {vendor_item}")
             return
 
-        time.sleep(2)
-
-        # ==============================================================================
-
-        # 3. Navigate to SKU/Price Tab (Index 5)
+        # 3. ไป Tab SKU/Price
         self._click("/html/body/div/div/section/section/div/ul/li[5]/a")
 
-        # 4. Click 'Create' (or similar button inside the tab)
+        # 4. กดปุ่ม Create
         self._click(
             "/html/body/div/div/section/section/section[3]/div[1]/section/div/div/div/div/a"
         )
 
-        # 5. Fill Vendor
-        # Open Dropdown
+        # 5. กดเลือก Variant/Option (Trigger Pop-up)
         self._click(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[3]/div/div[1]/span[1]"
+            "/html/body/div/div/section/section/section[2]/div[1]/div/section[1]/div/div[1]/div"
         )
-        # Select Vendor
+        time.sleep(1)  # รอ Animation Pop-up นิดหน่อย
+
+        # ==========================================
+        # 🟢 LOGIC ตรวจสอบ Pop-up (ตามที่คุณต้องการ)
+        # ==========================================
+        target_option_xpath = (
+            "/html/body/div/div/section/section/div/div/div[2]/div/div[2]/div[1]/li/div"
+        )
+
         try:
+            # ใช้ Short Wait (3 วิ) เพื่อเช็คว่ามีตัวเลือกไหม
+            short_wait = WebDriverWait(self.driver, 3)
+            short_wait.until(
+                EC.presence_of_element_located((By.XPATH, target_option_xpath))
+            )
+
+            # --> กรณีเจอ (มีตัวเลือก)
+            logger.info("✅ เจอตัวเลือก -> กดเลือก -> กดปุ่ม Confirm (Button 2)")
+            self._click(target_option_xpath)
+            time.sleep(0.5)
+            # กดปุ่ม Confirm
+            self._click(
+                "/html/body/div/div/section/section/div/div/div[2]/div/div[3]/button[2]"
+            )
+
+        except TimeoutException:
+            # --> กรณีไม่เจอ (Timeout)
+            logger.info("⚠️ ไม่เจอตัวเลือก -> กดปุ่ม Cancel (Button 1)")
+            # กดปุ่ม Cancel
+            self._click(
+                "/html/body/div/div/section/section/div/div/div[2]/div/div[3]/button[1]"
+            )
+
+        # ==========================================
+
+        # รอให้ฟอร์มโหลดกลับมาเป็นปกติ
+        time.sleep(1)
+
+        # 6. กรอกข้อมูล Vendor (Dropdown)
+        try:
+            self._click(
+                "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[3]/div/div[1]/span[1]"
+            )
             self._click(f"//ul/li[contains(normalize-space(.), '{vendor_item}')]")
         except Exception:
-            logger.warning(f"Vendor '{vendor_item}' not found in dropdown.")
+            logger.warning("⚠ เลือก Vendor ใน Dropdown ไม่ได้ หรือมีค่าอยู่แล้ว")
 
-        # 6. Fill AP Number
-        # Open AP Dropdown
-        self._click(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[4]/div/div[1]/span[1]"
-        )
+        # 7. กรอก AP Number
+        if pd.notna(row.get("AP Number")):
+            try:
+                # เปิด Dropdown AP
+                self._click(
+                    "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[4]/div/div[1]/span[1]"
+                )
+                # พิมพ์ค่าลงไป
+                self._fill(
+                    "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[4]/div/div[2]/div/div[1]/div/input",
+                    row["AP Number"],
+                )
+                # เลือกจาก List ที่เด้งมา
+                self._click(
+                    f"//ul/li[contains(normalize-space(.), '{row['AP Number']}')]",
+                    timeout=5,
+                )
+            except Exception:
+                logger.warning("⚠ กรอก AP Number ไม่สำเร็จ")
 
-        ap_number = row["AP Number"]
-        self._fill(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[4]/div/div[2]/div/div[1]/div/input",
-            ap_number,
-        )
-
-        # Select AP Result
-        try:
-            self._click(f"//ul/li[contains(normalize-space(.), '{ap_number}')]")
-        except Exception:
-            logger.warning(f"AP Number '{ap_number}' not found in dropdown list.")
-
-        # 7. Purchasing Condition
+        # 8. Purchasing Condition (Text Area)
         self._fill(
             "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[10]/div/textarea",
-            row["Purchasing Condition"],
+            row.get("Purchasing Condition"),
         )
 
-        # 8. Order Status
-        # Open Dropdown
-        self._click(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[11]/div/div[1]/span[1]"
-        )
-        time.sleep(0.5)
-        # Select Option
-        self._select_dropdown_option(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[11]/div/div[2]/div/div",
-            row["SKU Status"],
-        )
+        # 9. Order Status (Dropdown)
+        try:
+            self._click(
+                "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[11]/div/div[1]/span[1]"
+            )
+            self._select_dropdown_option(
+                "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[11]/div/div[2]/div/div",
+                row.get("SKU Status"),
+            )
+        except:
+            pass
 
-        # 9. Unit Price
+        # 10. Unit Price
         self._fill(
             "/html/body/div/div/section/section/section[2]/div[1]/div/section[3]/div[2]/div/div[4]/div/div/input",
-            row["Unit Price"],
+            row.get("Unit Price"),
         )
 
-        # 10. Description (Vendor)
+        # 11. Description
         self._fill(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[6]/div/textarea",
-            row["Description For Vendor"],
+            "/html/body/div/div/section/section/section[2]/div[1]/div/section[4]/div[3]/div/textarea",
+            row.get("Description For Vendor"),
         )
 
-        # ==============================================================================
-
-        # 11. Save
+        # 12. กดปุ่ม SAVE
+        logger.info("กดบันทึก...")
         self._click("/html/body/div/div/section/section/section[1]/div/button")
-        time.sleep(2)
 
-        # 12. Extract and Save SKU ID
+        # 13. ดึง SKU ID ที่ถูกสร้าง
         try:
+            # รอให้ H1 ปรากฏ (ปกติหลังจาก Save จะเด้งไปหน้า View)
             sku_element = self.wait.until(
-                EC.presence_of_element_located(
+                EC.visibility_of_element_located(
                     (
                         By.XPATH,
                         "/html/body/div/div/section/section/section[1]/div[1]/div[1]/h1",
@@ -312,50 +333,49 @@ class ChanintrBot:
                 )
             )
             sku_text = sku_element.text.strip()
+
             if sku_text:
-                # Changed to save to Excel
                 self.save_result_to_excel(vendor_item, sku_text)
             else:
-                logger.warning("SKU text found but empty.")
-        except Exception:
-            logger.warning("⚠ Could not locate SKU text element after saving.")
+                logger.error("SKU Text ว่างเปล่า")
+
+        except TimeoutException:
+            logger.error("❌ หา SKU ID ไม่เจอหลังจากการบันทึก (อาจจะบันทึกไม่ผ่าน)")
 
 
-# ---------------- MAIN EXECUTION ----------------
+# ---------------- RUN ----------------
 if __name__ == "__main__":
-    print("=== Chanintr SKU Automation Bot ===")
+    print("=== Chanintr SKU Bot ===")
 
-    # Securely get credentials
-    google_email = input("Google Email: ").strip()
-    google_password = getpass.getpass("Google Password: ").strip()
+    # รับค่า Login
+    g_email = input("Google Email: ").strip()
+    g_pass = getpass.getpass("Google Password: ").strip()
+
+    if not os.path.exists(EXCEL_FILE_PATH):
+        logger.error(f"ไม่พบไฟล์ Excel: {EXCEL_FILE_PATH}")
+        exit()
+
+    df = pd.read_excel(EXCEL_FILE_PATH)
+    logger.info(f"โหลดข้อมูล {len(df)} แถว")
+
+    bot = ChanintrBot()
 
     try:
-        # Load Excel
-        logger.info(f"Loading Excel from: {EXCEL_FILE_PATH}")
-        df = pd.read_excel(EXCEL_FILE_PATH)
-
-        # Initialize Bot
-        bot = ChanintrBot()
-
-        # Perform Login
-        bot.login_google(google_email, google_password)
+        # Login
+        bot.login_manual_fallback(g_email, g_pass)
         bot.login_base()
 
-        # Iterate Rows
+        # Loop ทำงาน
         for index, row in df.iterrows():
             try:
-                logger.info(f"--- Starting Row {index + 1} ---")
                 bot.process_sku_creation(row)
-                logger.info(f"--- Finished Row {index + 1} ---")
+                time.sleep(2)
             except Exception as e:
-                logger.error(f"Failed processing row {index + 1}: {e}", exc_info=True)
-                # Continue to next row
+                logger.error(f"ข้ามรายการที่ {index+1} เนื่องจาก Error: {e}")
                 continue
 
-    except Exception as e:
-        logger.critical(f"Critical Error: {e}", exc_info=True)
+    except KeyboardInterrupt:
+        logger.info("หยุดการทำงานโดยผู้ใช้")
     finally:
-        # Ask user before closing to see results
-        input("\nPress Enter to close browser and exit...")
-        if "bot" in locals():
-            bot.close()
+        logger.info("เสร็จสิ้น ปิดโปรแกรม...")
+        bot.close()

@@ -2,125 +2,124 @@ import time
 import pandas as pd
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from datetime import datetime
 
-# ---------------- CONFIG ----------------
-excel_input = r"C:\Users\tanapat\Downloads\1_WWS_model id to get 2D-3D_20Aug25_updated style no.xlsx"
-log_file = r"C:\Users\tanapat\Downloads\waterworks_price_log.txt"
-batch_save = 10
+# --- อ่าน Excel input ---
+excel_path = r"C:\Users\tanapat\Downloads\WWS SKU to check new USD price_11Dec25.xlsx"
+df = pd.read_excel(excel_path)
+style_list = df["Style No."].dropna().astype(str).tolist()
+print(f"Found {len(style_list)} Style No.")
 
-# ฟังก์ชันเขียน log ทั้ง console และไฟล์
-def log(msg):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{timestamp}] {msg}"
-    print(line)
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+# --- เปิด browser ---
+driver = uc.Chrome(headless=False, version_main=142)
+wait = WebDriverWait(driver, 20)
 
-# อ่านข้อมูลจากไฟล์ Excel
-df = pd.read_excel(excel_input)
-search_list = df['Style No.'].dropna().astype(str).tolist()
+# --- เก็บผลลัพธ์ทั้งหมด ---
+all_results = []
 
-# เพิ่มคอลัมน์ Price ถ้ายังไม่มี
-if "Price" not in df.columns:
-    df["Price"] = ""
+for style_no in style_list:
+    url = f"https://www.waterworks.com/us_en/catalogsearch/result/?q={style_no}"
+    print(f"\nOpening URL: {url}")
+    driver.get(url)
+    time.sleep(3)
 
-# --- ตั้งค่า Chrome Driver ---
-options = uc.ChromeOptions()
-options.add_argument("--start-maximized")
-options.add_argument("--disable-popup-blocking")
-options.add_argument("--disable-notifications")
-options.add_argument("--disable-extensions")
+    # --- ล้าง array สำหรับ Style No. ใหม่ ---
+    results = []
 
-driver = uc.Chrome(options=options)
-wait = WebDriverWait(driver, 10)
-
-def search_and_open(vid_search):
-    """ ฟังก์ชันค้นหาและคลิกรายการแรก """
+    # --- ตรวจสอบ Style ---
     try:
-        search_box = wait.until(EC.element_to_be_clickable((By.XPATH, "//form/div[2]")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", search_box)
-        search_box.click()
-        search_input = wait.until(EC.element_to_be_clickable((By.XPATH, "//form/div[2]/input")))
-        search_input.clear()
-        search_input.send_keys(vid_search)
-        search_input.send_keys(Keys.RETURN)
-    except:
-        return False
-
-    try:
-        first_item = wait.until(EC.element_to_be_clickable((By.XPATH, "//ol/li[1]/div/div[1]")))
-        first_item.click()
-        time.sleep(2)
-        return True
-    except:
-        return False
-
-try:
-    for idx, vid_search in enumerate(search_list):
-
-        # ถ้ามีราคาอยู่แล้ว -> ข้ามไปเลย
-        if pd.notna(df.loc[idx, "Price"]) and str(df.loc[idx, "Price"]).strip() != "":
-            log(f"⏭️ {vid_search}: มีราคาที่บันทึกไว้แล้ว ข้ามไป")
+        page_style = driver.find_element(
+            By.CSS_SELECTOR, "#pdp-attribute-style"
+        ).text.strip()
+        if page_style != style_no:
+            print(
+                f"Style mismatch: page has '{page_style}', expected '{style_no}'. Skip."
+            )
             continue
+    except:
+        print("No style found on page. Skip.")
+        continue
 
-        driver.get("https://www.waterworks.com/us_en/")
-        time.sleep(2)
-        
-        # ค้นหาครั้งแรก
-        search_and_open(vid_search)
+    # --- หา dropdown options ---
+    try:
+        dropdown_button = wait.until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, ".dynamic-select"))
+        )
+        dropdown_button.click()
+        time.sleep(1)
 
-        # --- ตรวจสอบ Style No. (รอบแรก) ---
-        try:
-            style_element = wait.until(
-                EC.visibility_of_element_located(
-                    (By.XPATH, "/html/body/div[2]/main/div[3]/div/div/div[1]/div[2]/div/div/div[4]/div[3]/div[1]/div")
+        li_list = wait.until(
+            EC.presence_of_all_elements_located(
+                (By.CSS_SELECTOR, "li.product-option-li")
+            )
+        )
+        total = len(li_list)
+        print(f"Found {total} options for Style No. {style_no}")
+
+        for i in range(total):
+            # เปิด dropdown ใหม่ก่อนคลิก
+            dropdown_button.click()
+            time.sleep(1)
+
+            # ดึง li ใหม่ทุกครั้ง
+            li_list = wait.until(
+                EC.presence_of_all_elements_located(
+                    (By.CSS_SELECTOR, "li.product-option-li")
                 )
             )
-            style_text = style_element.text.strip()
-        except:
-            log(f"⚠️ {vid_search}: ไม่พบ element Style No.")
-            df.loc[idx, "Price"] = "NO PRICE"
-            continue
+            li = li_list[i]
+            option_text = li.text.strip()
 
-        if style_text != vid_search:
-            log(f"⚠️ {vid_search}: ไม่ตรงกับบนเว็บ")
-            df.loc[idx, "Price"] = "NO PRICE"
+            # คลิกด้วย JS เพื่อดึงข้อมูล
+            driver.execute_script("arguments[0].scrollIntoView(true);", li)
+            driver.execute_script("arguments[0].click();", li)
+            time.sleep(1.5)
 
-        # --- ดึงราคา ---
-        price = ""
-        try:
-            price_element = driver.find_element(
-                By.XPATH,
-                    "/html/body/div[2]/main/div[3]/div/div/div[1]/div[2]/div/div/div[4]/div[1]/div/span/span[1]"
-                )
-            price = price_element.text.strip()
-            if price:
-                log(f"💰 {vid_search}: ราคา = {price}")
-            else:
-                log(f"⚠️ {vid_search}: ไม่พบราคา")
-                price = "NO PRICE"
-        except:
-            log(f"⚠️ {vid_search}: ไม่พบ element ราคา")
-            price = "NO PRICE"
-
-        df.loc[idx, "Price"] = price
-
-        # --- บันทึก Excel เป็น batch ---
-        if (idx + 1) % batch_save == 0:
+            # --- ดึงข้อมูล Style, SKU, Price ---
             try:
-                df.to_excel(excel_input, index=False)
-                log(f"💾 บันทึก Excel batch (ถึงรายการที่ {idx + 1})")
-            except Exception as e:
-                log(f"❌ บันทึก Excel ล้มเหลว: {e}")
+                style = driver.find_element(
+                    By.CSS_SELECTOR, "#pdp-attribute-style"
+                ).text.strip()
+            except:
+                style = style_no
+            try:
+                sku = driver.find_element(
+                    By.CSS_SELECTOR, "#pdp-attribute-sku"
+                ).text.strip()
+            except:
+                sku = "N/A"
+            try:
+                price = driver.find_element(
+                    By.CSS_SELECTOR,
+                    "#pdp-price-from-pricing-main > span > span.price-wrapper > span",
+                ).text.strip()
+            except:
+                price = "N/A"
 
-    # บันทึกตอนจบ
-    df.to_excel(excel_input, index=False)
-    log("✅ อัปเดตราคาลง Excel เรียบร้อย")
+            # --- ตรวจสอบซ้ำภายใน array ของ Style No. นี้ ---
+            is_duplicate = any(r["sku"] == sku and r["price"] == price for r in results)
+            if is_duplicate:
+                print(
+                    f"[{i+1}] Skip '{option_text}' because SKU+Price already exists in this Style No."
+                )
+                continue
 
-finally:
-    driver.quit()
-    log("🚪 ปิด Browser แล้ว")
+            # ถ้าไม่ซ้ำ → เก็บลง results
+            results.append({"style": style, "sku": sku, "price": price})
+            print(f"[{i+1}] Added: Style={style}, SKU={sku}, Price={price}")
+
+    except Exception as e:
+        print(f"No options found or error: {e}")
+        continue
+
+    # --- เก็บผลลัพธ์ของ Style No. นี้ ลง all_results ---
+    all_results.extend(results)
+
+    # --- บันทึกลง Excel ---
+    output_path = r"C:\Users\tanapat\Desktop\waterworks_results_left.xlsx"
+    df_output = pd.DataFrame(all_results, columns=["style", "sku", "price"])
+    df_output.to_excel(output_path, index=False)
+    print(f"\n✅ Saved all results to {output_path}")
+
+driver.quit()

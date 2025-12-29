@@ -15,7 +15,7 @@ GOOGLE_EMAIL = input()
 print("GOOGLE_PASSWORD")
 GOOGLE_PASSWORD = input()
 OUTPUT_FILE = r"C:\Users\tanapat\Desktop\base_products.xlsx"
-link_prod = "https://base.chanintr.com/brand/8/products?currentPage=1&searchText=decoration&directionUser=DESC&sortBy=title&direction=ASC&isSearch=true"
+link_prod = "https://base.chanintr.com/brand/15/products?currentPage=1&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
 
 # ---------------- Chrome Options ----------------
 chrome_options = Options()

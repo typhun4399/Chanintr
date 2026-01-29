@@ -12,7 +12,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # ---------------- CONFIGURATION ----------------
 EXCEL_FILE_PATH = r"C:\Users\tanapat\Downloads\Create DEE.xlsx"
-LINK_PRODUCT_CREATE = "https://base.chanintr.com/brand/420/products?currentPage=1&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
+LINK_PRODUCT_CREATE = "https://base.chanintr.com/brand/118/products?currentPage=1&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
 LOGIN_URL = "https://base.chanintr.com/login"
 
 # ---------------- LOGGING SETUP ----------------
@@ -324,7 +324,7 @@ if __name__ == "__main__":
 
     # Securely get credentials
     google_email = input("Google Email: ").strip()
-    google_password = getpass.getpass("Google Password: ").strip()
+    google_password = input("Google Password: ").strip()
 
     try:
         # Load Excel

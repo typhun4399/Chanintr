@@ -4,6 +4,7 @@ import logging
 import pandas as pd
 import getpass
 import os
+from urllib.parse import quote
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -21,7 +22,7 @@ SKU_OUTPUT_FILE = r"C:\Users\tanapat\Downloads\sku_result.xlsx"
 
 # Login & Base URLs
 LOGIN_URL = "https://base.chanintr.com/login"
-BASE_PRODUCT_URL = "https://base.chanintr.com/brand/420/products"
+BASE_PRODUCT_URL = "https://base.chanintr.com/brand/118/products"
 
 # ---------------- LOGGING SETUP ----------------
 logging.basicConfig(
@@ -165,9 +166,11 @@ class ChanintrBot:
         logger.info(f"🔹 กำลังทำรายการ: {vendor_item}")
 
         # 1. ค้นหา Product
+        encoded_item = quote(vendor_item)
+
         search_url = (
             f"{BASE_PRODUCT_URL}"
-            f"?currentPage=1&searchText={vendor_item}"
+            f"?currentPage=1&searchText={encoded_item}"
             "&directionUser=DESC&sortBy=title&direction=ASC&isSearch=false"
         )
         self.driver.get(search_url)
@@ -289,7 +292,7 @@ class ChanintrBot:
 
         # 8. Purchasing Condition (Text Area)
         self._fill(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[10]/div/textarea",
+            "/html/body/div/div/section/section/section[2]/div[1]/div/section[2]/div[9]/div/textarea",
             row.get("Purchasing Condition"),
         )
 
@@ -313,7 +316,7 @@ class ChanintrBot:
 
         # 11. Description
         self._fill(
-            "/html/body/div/div/section/section/section[2]/div[1]/div/section[4]/div[3]/div/textarea",
+            "/html/body/div/div/section/section/section[2]/div[1]/div/section[6]/div/textarea",
             row.get("Description For Vendor"),
         )
 
@@ -349,7 +352,7 @@ if __name__ == "__main__":
 
     # รับค่า Login
     g_email = input("Google Email: ").strip()
-    g_pass = getpass.getpass("Google Password: ").strip()
+    g_pass = input("Google Password: ").strip()
 
     if not os.path.exists(EXCEL_FILE_PATH):
         logger.error(f"ไม่พบไฟล์ Excel: {EXCEL_FILE_PATH}")

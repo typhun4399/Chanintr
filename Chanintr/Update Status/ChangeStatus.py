@@ -18,7 +18,7 @@ print("GOOGLE_EMAIL")
 GOOGLE_EMAIL = input()
 print("GOOGLE_PASSWORD")
 GOOGLE_PASSWORD = input()
-INPUT_FILE = r"C:\Users\tanapat\Desktop\base_products_RST.xlsx"
+INPUT_FILE = r"C:\Users\tanapat\Desktop\base_products.xlsx"
 
 # ---------------- Chrome Options ----------------
 chrome_options = Options()
@@ -164,35 +164,12 @@ try:
                                     "⚠️ dropdown text ไม่เปลี่ยนเป็น 'Order with condition'"
                                 )
 
-                            # ---------- STEP 4G: กด checkbox ----------
-                            checkbox_css = "body > div > div > section > section > div.v--modal-overlay.scrollable.modal.modal-product-create-edit > div > div.v--modal-box.v--modal > div > div.modal-content > div:nth-child(6) > div.col-md-8 > div.modal-product-create-edit-form-checkbox.apply-to-sku-checkbox.base-checkbox.is-checked"
-                            checkbox = wait.until(
-                                EC.element_to_be_clickable(
-                                    (By.CSS_SELECTOR, checkbox_css)
-                                )
-                            )
-                            checkbox.click()
-                            logging.info("✅ กด checkbox เรียบร้อย")
-                            time.sleep(0.5)
-
-                            # ---------- STEP 4H: ตรวจสอบว่า class เปลี่ยน (is-checked หายไป) ----------
-                            checkbox_container = driver.find_element(
+                            submit_btn = driver.find_element(
                                 By.CSS_SELECTOR,
-                                "body > div > div > section > section > div.v--modal-overlay.scrollable.modal.modal-product-create-edit > div > div.v--modal-box.v--modal > div > div.modal-content > div:nth-child(6) > div.col-md-8 > div.modal-product-create-edit-form-checkbox.apply-to-sku-checkbox.base-checkbox",
+                                "body > div > div > section > section > div.v--modal-overlay.scrollable.modal.modal-product-create-edit > div > div.v--modal-box.v--modal > div > div.modal-footer > button.btn",
                             )
-                            class_list = checkbox_container.get_attribute("class")
-                            if "is-checked" in class_list:
-                                logging.error("❌ Checkbox ยังมี 'is-checked' หลังจากกด")
-                            else:
-                                logging.info(
-                                    "✅ Checkbox ถูกเปลี่ยนเรียบร้อย, กดปุ่ม Submit modal"
-                                )
-                                submit_btn = driver.find_element(
-                                    By.CSS_SELECTOR,
-                                    "body > div > div > section > section > div.v--modal-overlay.scrollable.modal.modal-product-create-edit > div > div.v--modal-box.v--modal > div > div.modal-footer > button.btn",
-                                )
-                                submit_btn.click()
-                                logging.info("✅ กด Submit modal เรียบร้อย")
+                            submit_btn.click()
+                            logging.info("✅ กด Submit modal เรียบร้อย")
 
                         except Exception as e:
                             logging.warning(
